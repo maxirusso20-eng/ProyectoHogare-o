@@ -86,7 +86,15 @@ const Storage = {
   setJSON: (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { } },
   remove: (key) => { try { localStorage.removeItem(key); } catch { } },
 
-  loadConfig() { return { sheetId: Storage.get('col_sid'), apiKey: Storage.get('col_key'), appsUrl: Storage.get('col_url', ''), sheetIdRec: Storage.get('col_sid_rec') || Storage.get('col_sid') }; },
+  loadConfig() {
+    const env = window.APP_CONFIG || {};
+    return {
+      sheetId: Storage.get('col_sid') || env.sheetId || '',
+      apiKey: env.apiKey || Storage.get('col_key') || '',
+      appsUrl: Storage.get('col_url') || env.appsUrl || '',
+      sheetIdRec: Storage.get('col_sid_rec') || env.sheetIdRec || Storage.get('col_sid') || env.sheetId || ''
+    };
+  },
   saveConfig(c) { Storage.set('col_sid', c.sheetId); Storage.set('col_key', c.apiKey); Storage.set('col_url', c.appsUrl); Storage.set('col_sid_rec', c.sheetIdRec); },
 
   loadEnviados(hoja) { return new Set(Storage.getJSON(`col_enviados_${hoja}`, [])); },
@@ -284,7 +292,7 @@ const API = {
       if (!r[1] && !r[0]) continue;
       result.push({
         id: i + 1, choferIdAt: r[0] || '', nombre: r[1] || '', tel: r[2] || '',
-        dni: r[3] || '', zona: r[4] || '', direccion: r[5] || '', ingreso: r[6] || '',
+        dni: r[3] || '', zona: r[4] || '', direccion: r[5] || '', condicion: r[6] || '',
         activo: r[7]?.toString().toUpperCase() === 'TRUE',
       });
     }
@@ -380,18 +388,35 @@ const Render = {
       card.className = `chofer-card${c.enviado ? ' enviado' : ''}`;
       card.dataset.nombre = c.nombre;
       const waHref = buildWA(c);
+      const totalClientes = c.clientes.length;
 
       card.innerHTML = `
         <div class="card-header">
-          <div><div class="chofer-name">${x(c.nombre)}</div><div class="chofer-meta">${c.clientes.length} clientes · ${c.telefono ? '📱 ' + fmtTel(c.telefono) : '⚠ sin teléfono'}</div></div>
+          <div class="card-header-info">
+            <div class="chofer-name">${x(c.nombre)}</div>
+            <div class="chofer-meta">
+              <span class="meta-chip">👥 ${totalClientes} clientes</span>
+              ${c.telefono ? `<span class="meta-chip">📱 ${fmtTel(c.telefono)}</span>` : '<span class="meta-chip meta-warn">⚠ sin teléfono</span>'}
+            </div>
+          </div>
           <span class="badge-enviado">ENVIADO</span>
         </div>
         <div class="clientes-list">
-          ${c.clientes.map(k => `<div class="cliente-row"><div class="cliente-top"><span class="cliente-nombre">${x(k.nombre)}</span><span class="cliente-horario">${x(k.horario)}</span></div><div class="cliente-dir">${x(k.dir)}</div></div>`).join('')}
+          ${c.clientes.map((k, i) => `
+            <div class="cliente-row">
+              <span class="cliente-num">${i + 1}</span>
+              <div class="cliente-body">
+                <div class="cliente-top">
+                  <span class="cliente-nombre">${x(k.nombre)}</span>
+                  ${k.horario ? `<span class="cliente-horario">${x(k.horario)}</span>` : ''}
+                </div>
+                ${k.dir && k.dir !== '—' ? `<div class="cliente-dir">${x(k.dir)}</div>` : ''}
+              </div>
+            </div>`).join('')}
         </div>
         <div class="card-footer">
-          ${waHref ? `<a class="btn-wa" href="${waHref}" target="_blank" data-action="marcar-enviado" data-nombre="${x(c.nombre)}">ENVIAR RECORRIDO</a>` : `<button class="btn-wa" disabled style="opacity:.4;cursor:not-allowed">⚠ Sin teléfono</button>`}
-          <button class="btn-toggle" data-action="toggle-enviado" data-nombre="${x(c.nombre)}">${c.enviado ? '✓ Marcado' : 'Marcar'}</button>
+          ${waHref ? `<a class="btn-wa" href="${waHref}" target="_blank" data-action="marcar-enviado" data-nombre="${x(c.nombre)}">🚀 ENVIAR POR WHATSAPP</a>` : `<button class="btn-wa btn-wa-disabled" disabled>⚠ Sin teléfono</button>`}
+          <button class="btn-toggle${c.enviado ? ' btn-toggle-sent' : ''}" data-action="toggle-enviado" data-nombre="${x(c.nombre)}">${c.enviado ? '✓ Enviado' : 'Marcar'}</button>
         </div>`;
       grid.appendChild(card);
     });
@@ -457,15 +482,18 @@ const Render = {
   db(lista) {
     const tbody = document.getElementById('tbody-db');
     tbody.innerHTML = '';
-    if (!lista.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No hay registros.</td></tr>'; return; }
+    if (!lista.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay registros.</td></tr>'; return; }
+    const condOpts = ['Titular', 'Semititular', 'Suplente'];
     lista.forEach(c => {
       const tr = document.createElement('tr'); tr.id = `db-row-${c.id}`;
-      tr.innerHTML = `<td style="width:28px">${c.id - 1}</td><td>${x(c.choferIdAt)}</td><td class="td-cliente">${x(c.nombre)}</td><td class="td-horario">${x(c.tel)}</td><td>${x(c.dni)}</td><td>${x(c.zona)}</td><td class="td-dir">${x(c.direccion)}</td><td>${x(c.ingreso)}</td><td style="text-align:center"><input type="checkbox" ${c.activo ? 'checked' : ''} data-action="toggle-activo-db" data-id="${c.id}"></td><td class="td-acciones"><button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button><button class="btn-del" data-action="eliminar-db" data-id="${c.id}">🗑</button></td>`;
+      const condBadge = c.condicion ? `<span class="cond-badge cond-${(c.condicion || '').toLowerCase().replace(' ', '')}">` + x(c.condicion) + '</span>' : '—';
+      tr.innerHTML = `<td class="td-idat">${x(c.choferIdAt)}</td><td class="td-cliente">${x(c.nombre)}</td><td class="td-horario">${c.tel ? `<a class="tel-link" href="tel:${x(c.tel)}">${fmtTel(c.tel)}</a>` : '—'}</td><td>${x(c.dni)}</td><td>${x(c.zona)}</td><td class="td-dir">${x(c.direccion)}</td><td>${condBadge}</td><td class="td-acciones"><button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button><button class="btn-del" data-action="eliminar-db" data-id="${c.id}">🗑</button></td>`;
       tbody.appendChild(tr);
     });
   },
   _dbEditRow(c) {
-    return `<td style="width:28px"></td><td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}"></td><td><input class="inp-inline" id="db-in-nom-${c.id}" value="${x(c.nombre)}"></td><td><input class="inp-inline" id="db-in-tel-${c.id}" value="${x(c.tel)}"></td><td><input class="inp-inline" id="db-in-dni-${c.id}" value="${x(c.dni)}"></td><td><input class="inp-inline" id="db-in-zon-${c.id}" value="${x(c.zona)}"></td><td><input class="inp-inline" id="db-in-dir-${c.id}" value="${x(c.direccion)}"></td><td><input class="inp-inline" id="db-in-ing-${c.id}" value="${x(c.ingreso)}"></td><td style="text-align:center"><input type="checkbox" id="db-in-act-${c.id}" ${c.activo ? 'checked' : ''}></td><td class="td-acciones"><button class="btn-save" data-action="guardar-db" data-id="${c.id}">✓</button></td>`;
+    const condOpts = ['Titular', 'Semititular', 'Suplente'].map(o => `<option value="${o}"${o === c.condicion ? ' selected' : ''}>${o}</option>`).join('');
+    return `<td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}"></td><td><input class="inp-inline" id="db-in-nom-${c.id}" value="${x(c.nombre)}"></td><td><input class="inp-inline" id="db-in-tel-${c.id}" value="${x(c.tel)}"></td><td><input class="inp-inline" id="db-in-dni-${c.id}" value="${x(c.dni)}"></td><td><input class="inp-inline" id="db-in-zon-${c.id}" value="${x(c.zona)}"></td><td><input class="inp-inline" id="db-in-dir-${c.id}" value="${x(c.direccion)}"></td><td><select class="select-inline" id="db-in-cond-${c.id}"><option value="">— sin condición —</option>${condOpts}</select></td><td class="td-acciones"><button class="btn-save" data-action="guardar-db" data-id="${c.id}">✓</button><button class="btn-cancel" data-action="cancelar-db" data-id="${c.id}">✕</button></td>`;
   },
 
   historial(lista) {
@@ -753,13 +781,12 @@ const Handlers = {
       dni: document.getElementById(`db-in-dni-${rowId}`)?.value.trim() ?? c.dni,
       zona: document.getElementById(`db-in-zon-${rowId}`)?.value.trim() ?? c.zona,
       tel: document.getElementById(`db-in-tel-${rowId}`)?.value.trim() ?? c.tel,
-      ingreso: document.getElementById(`db-in-ing-${rowId}`)?.value.trim() ?? c.ingreso,
       choferIdAt: document.getElementById(`db-in-idat-${rowId}`)?.value.trim() ?? c.choferIdAt,
-      activo: document.getElementById(`db-in-act-${rowId}`)?.checked ?? c.activo
+      condicion: document.getElementById(`db-in-cond-${rowId}`)?.value ?? c.condicion,
     });
     if (S.config.appsUrl) {
       const url = `${S.config.appsUrl}?action=updateRecorridoFila&sheet=${enc('BASE DE DATOS CHOFERES')}&row=${rowId}&docid=${S.config.sheetIdRec || S.config.sheetId}`;
-      Promise.all(['nombre', 'dir', 'dni', 'zona', 'cel', 'ingreso', 'id'].map(f => API.ping(`${url}&field=db_${f}&value=${enc(c[f === 'cel' ? 'tel' : f === 'id' ? 'choferIdAt' : f === 'dir' ? 'direccion' : f])}`)));
+      Promise.all(['nombre', 'dir', 'dni', 'zona', 'cel', 'id', 'condicion'].map(f => API.ping(`${url}&field=db_${f}&value=${enc(c[f === 'cel' ? 'tel' : f === 'id' ? 'choferIdAt' : f === 'dir' ? 'direccion' : f])}`)));
     }
     Handlers.cancelarDB(rowId); Render.toast('✓ Cambios guardados', 'ok');
   },
@@ -779,15 +806,23 @@ const Handlers = {
     const idat = document.getElementById('nc-idat').value.trim();
     const nom = document.getElementById('nc-nom').value.trim();
     if (!idat || !nom) return Render.toast('ID y nombre obligatorios', 'err');
-    const nuevo = { id: Date.now(), choferIdAt: idat, nombre: nom, tel: document.getElementById('nc-cel').value, dni: document.getElementById('nc-dni').value, zona: document.getElementById('nc-zon').value, direccion: document.getElementById('nc-dir').value, ingreso: document.getElementById('nc-ing').value, activo: true };
+    const nuevo = {
+      id: Date.now(), choferIdAt: idat, nombre: nom,
+      tel: document.getElementById('nc-cel').value.trim(),
+      dni: document.getElementById('nc-dni').value.trim(),
+      zona: document.getElementById('nc-zon').value.trim(),
+      direccion: document.getElementById('nc-dir').value.trim(),
+      condicion: document.getElementById('nc-cond').value || 'Titular',
+      activo: true
+    };
     Storage.saveLocalNuevoChofer(nuevo); S.dbChoferes.push(nuevo); Handlers.filtrarDB(); Handlers.cerrarModalNuevoChofer();
-    if (S.config.appsUrl) API.ping(`${S.config.appsUrl}?action=addChofer&sheet=${enc('BASE DE DATOS CHOFERES')}&idat=${enc(idat)}&nombre=${enc(nom)}&tel=${enc(nuevo.tel)}&dni=${enc(nuevo.dni)}&zona=${enc(nuevo.zona)}&dir=${enc(nuevo.direccion)}&ingreso=${enc(nuevo.ingreso)}&docid=${S.config.sheetIdRec || S.config.sheetId}`);
+    if (S.config.appsUrl) API.ping(`${S.config.appsUrl}?action=addChofer&sheet=${enc('BASE DE DATOS CHOFERES')}&idat=${enc(idat)}&nombre=${enc(nom)}&tel=${enc(nuevo.tel)}&dni=${enc(nuevo.dni)}&zona=${enc(nuevo.zona)}&dir=${enc(nuevo.direccion)}&condicion=${enc(nuevo.condicion)}&docid=${S.config.sheetIdRec || S.config.sheetId}`);
     Render.toast('✓ Conductor agregado', 'ok');
   },
 
   cerrarModalNuevoChofer() {
     document.getElementById('modal-nuevo-chofer').style.display = 'none';
-    ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dni', 'nc-zon', 'nc-dir', 'nc-ing'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dni', 'nc-zon', 'nc-dir', 'nc-cond'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   },
 
   async cargarHistorial() { Render.historial(Storage.loadHistorial()); },
@@ -900,7 +935,7 @@ function initDragDrop(cont) {
 // ─── NAVEGACIÓN Y CONFIG ─────────────────────────────────────────
 function irA(pagina) {
   window.toggleMenu(false); S.pagina = pagina; Storage.savePage(pagina);
-  document.querySelectorAll('.nav-tab').forEach((b, i) => b.classList.toggle('active', ['despacho', 'clientes', 'recorridos', 'colectas', 'historial', 'db-choferes'][i] === pagina));
+  document.querySelectorAll('.nav-tab').forEach((b, i) => b.classList.toggle('active', ['clientes', 'despacho', 'recorridos', 'colectas', 'historial', 'db-choferes'][i] === pagina));
   ['despacho', 'clientes', 'recorridos', 'colectas', 'historial', 'db-choferes', 'admin'].forEach(p => { const el = document.getElementById(`page-${p}`); if (el) el.classList.toggle('active', p === pagina); });
 
   const tg = document.getElementById('tab-group');
@@ -963,12 +998,20 @@ window.toggleConfigInputs = () => { const el = document.getElementById('admin-co
 window.toggleTheme = () => { const root = document.documentElement; const newTheme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', newTheme); Storage.saveTheme(newTheme); const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = newTheme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'; };
 window.toggleMenu = (f) => { const s = document.getElementById('sidebar'); const o = document.getElementById('sidebar-overlay'); if (!s || !o) return; const shouldOpen = typeof f === 'boolean' ? f : !s.classList.contains('open'); s.classList.toggle('open', shouldOpen); o.classList.toggle('show', shouldOpen); };
 window.cerrarAdmin = () => irA('despacho');
-window.agregarLocalidad = () => Handlers.agregarLocalidad(); window.agregarChofer = () => Handlers.agregarCliente(); window.agregarFilaDB = () => Handlers.agregarDB(); window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer(); window.cerrarModalNuevoChofer = () => Handlers.cerrarModalNuevoChofer();
+window.agregarLocalidad = () => Handlers.agregarLocalidad(); window.agregarChofer = () => Handlers.agregarCliente(); window.agregarFilaDB = () => { const m = document.getElementById('modal-nuevo-chofer'); if (m) m.style.display = 'flex'; }; window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer(); window.cerrarModalNuevoChofer = () => Handlers.cerrarModalNuevoChofer();
 window.recargarPagina = () => irA(S.pagina); window.toggleMarcarTodos = () => Handlers.toggleMarcarTodos(); window.limpiarColectas = () => Handlers.limpiarColectas(); window.limpiarHistorial = () => Handlers.limpiarHistorial();
 
 // ─── INIT ────────────────────────────────────────────────────────
 function iniciar() {
   const cfg = Storage.loadConfig();
+  // Pre-llenamos los campos de config con los valores actuales
+  const fillCfg = () => {
+    ['inp-sheet-id', 'inp-api-key', 'inp-apps-url', 'inp-sid-rec'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (el) el.value = [cfg.sheetId, cfg.apiKey, cfg.appsUrl, cfg.sheetIdRec][i] || '';
+    });
+  };
+  setTimeout(fillCfg, 100);
   if (!cfg.sheetId || !cfg.apiKey) { irA('admin'); return; }
   S.config = cfg; S.hojaDespacho = Storage.loadHojaDespacho(); S.hojaClientes = Storage.loadHojaCli(); S.hojaRecorridos = Storage.loadHojaRec(); S.enviados = Storage.loadEnviados(S.hojaDespacho);
 
