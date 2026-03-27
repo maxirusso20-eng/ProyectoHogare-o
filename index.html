@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
 </head>
 
 <body>
@@ -20,8 +21,8 @@
             <button class="btn-close" onclick="toggleMenu()">✕</button>
         </div>
         <div class="sidebar-nav" id="sidebar-nav">
-            <button class="nav-tab active" onclick="irA('despacho')">🚛 Despacho</button>
-            <button class="nav-tab" onclick="irA('clientes')">👥 Clientes</button>
+            <button class="nav-tab active" onclick="irA('clientes')">👥 Clientes</button>
+            <button class="nav-tab" onclick="irA('despacho')">🚛 Despacho</button>
             <button class="nav-tab" onclick="irA('recorridos')">🗺️ Recorridos</button>
             <button class="nav-tab" onclick="irA('colectas')">🕒 Colectas</button>
             <button class="nav-tab" onclick="irA('historial')">🗂️ Historial</button>
@@ -81,22 +82,24 @@
 
     <!-- ── MODAL NUEVO CONDUCTOR ──────────────────── -->
     <div id="modal-nuevo-chofer" class="modal-overlay" style="display:none">
-        <div class="modal-card" style="max-width:420px">
+        <div class="modal-card" style="max-width:460px">
             <div class="modal-header">
                 <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;">➕ Nuevo Conductor</h3>
                 <button onclick="cerrarModalNuevoChofer()" class="btn-close">✕</button>
             </div>
-            <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding:20px">
-                <div class="field" style="margin:0">
-                    <label>ID del Conductor *</label>
-                    <input type="text" id="nc-idat" class="inp-inline" placeholder="Ej: CH001"
-                        onkeydown="if(event.key==='Enter')document.getElementById('nc-nom').focus()">
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;padding:24px">
+                <!-- ID + NOMBRE -->
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
+                    <div class="field" style="margin:0">
+                        <label>ID del Conductor *</label>
+                        <input type="text" id="nc-idat" class="inp-inline" placeholder="Ej: CH001">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label>Nombre Completo *</label>
+                        <input type="text" id="nc-nom" class="inp-inline" placeholder="Apellido, Nombre">
+                    </div>
                 </div>
-                <div class="field" style="margin:0">
-                    <label>Nombre Completo *</label>
-                    <input type="text" id="nc-nom" class="inp-inline" placeholder="Apellido, Nombre"
-                        onkeydown="if(event.key==='Enter')document.getElementById('nc-cel').focus()">
-                </div>
+                <!-- CELULAR + DNI -->
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
                     <div class="field" style="margin:0">
                         <label>Celular</label>
@@ -107,18 +110,26 @@
                         <input type="text" id="nc-dni" class="inp-inline" placeholder="xxxxxxxx">
                     </div>
                 </div>
+                <!-- ZONA -->
                 <div class="field" style="margin:0">
                     <label>Zona Preferencial</label>
                     <input type="text" id="nc-zon" class="inp-inline" placeholder="Ej: ZONA NORTE">
                 </div>
+                <!-- DIRECCIÓN -->
                 <div class="field" style="margin:0">
                     <label>Dirección de Domicilio</label>
                     <input type="text" id="nc-dir" class="inp-inline" placeholder="Calle Nº, Localidad">
                 </div>
+                <!-- CONDICIÓN -->
                 <div class="field" style="margin:0">
-                    <label>Fecha de Ingreso</label>
-                    <input type="date" id="nc-ing" class="inp-inline">
+                    <label>Condición</label>
+                    <select id="nc-cond" class="select-inline" style="width:100%;height:38px;font-size:0.85rem">
+                        <option value="Titular" selected>Titular</option>
+                        <option value="Semititular">Semititular</option>
+                        <option value="Suplente">Suplente</option>
+                    </select>
                 </div>
+                <!-- BOTONES -->
                 <div style="display:flex;gap:8px;margin-top:4px">
                     <button onclick="cerrarModalNuevoChofer()" class="btn-cancel"
                         style="flex:1;padding:10px">Cancelar</button>
@@ -293,14 +304,13 @@
                         <th>DNI</th>
                         <th>ZONA PREFERENCIAL</th>
                         <th>DIRECCIÓN</th>
-                        <th>FECHA INGRESO</th>
-                        <th>ACTIVO</th>
+                        <th>CONDICIÓN</th>
                         <th>ACCIONES</th>
                     </tr>
                 </thead>
                 <tbody id="tbody-db">
                     <tr>
-                        <td colspan="9" class="empty-state">Iniciá sesión para ver datos.</td>
+                        <td colspan="8" class="empty-state">Iniciá sesión para ver datos.</td>
                     </tr>
                 </tbody>
             </table>
@@ -407,6 +417,7 @@
         </div>
     </div>
 
+    <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
 
