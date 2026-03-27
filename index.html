@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Despacho — Colectas</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- ── SIDEBAR ────────────────────────────────── -->
+    <div id="sidebar-overlay" onclick="toggleMenu()"></div>
+    <aside id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">Hogareño</div>
+            <button class="btn-close" onclick="toggleMenu()">✕</button>
+        </div>
+        <div class="sidebar-nav" id="sidebar-nav">
+            <button class="nav-tab active" onclick="irA('despacho')">🚛 Despacho</button>
+            <button class="nav-tab" onclick="irA('clientes')">👥 Clientes</button>
+            <button class="nav-tab" onclick="irA('recorridos')">🗺️ Recorridos</button>
+            <button class="nav-tab" onclick="irA('colectas')">🕒 Colectas</button>
+            <button class="nav-tab" onclick="irA('historial')">🗂️ Historial</button>
+            <button class="nav-tab db-btn" onclick="abrirSeguridad()">🗄️ Base de Datos</button>
+        </div>
+        <div class="sidebar-footer">
+            <button class="btn-theme" onclick="toggleTheme()" id="btn-theme">☀️ Modo Claro</button>
+        </div>
+    </aside>
+
+    <!-- ── HEADER ─────────────────────────────────── -->
+    <header>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button id="btn-menu" class="btn-menu" onclick="toggleMenu()" style="display:none">☰ Menú</button>
+            <div class="logo">Logistica Hogareño</div>
+        </div>
+
+        <div class="tab-group" id="tab-group" style="display:none">
+            <button class="tab-btn active" onclick="cambiarHoja('DESPACHO_WHATSAPP')">SEMANA</button>
+            <button class="tab-btn" onclick="cambiarHoja('DESPACHO_WHATSAPP_SABADOS')">SÁBADO</button>
+        </div>
+
+        <div class="tab-group" id="tab-group-clientes" style="display:none">
+            <button class="tab-btn active" onclick="cambiarHojaClientes('DESPACHO_WHATSAPP')">SEMANA</button>
+            <button class="tab-btn" onclick="cambiarHojaClientes('DESPACHO_WHATSAPP_SABADOS')">SÁBADO</button>
+        </div>
+
+        <div class="tab-group" id="tab-group-recorridos" style="display:none">
+            <button class="tab-btn active" onclick="cambiarHojaRecorrido('HOJA DE RECORRIDO')">SEMANA</button>
+            <button class="tab-btn" onclick="cambiarHojaRecorrido('HOJA DE RECORRIDOS SABADOS')">SÁBADO</button>
+        </div>
+
+        <div class="header-actions">
+            <div id="status-dot" class="status-dot"></div>
+            <button id="btn-reload" class="btn-sm" onclick="recargarPagina()" style="display:none">↻ Actualizar</button>
+        </div>
+    </header>
+
+    <!-- ── MODAL SEGURIDAD ────────────────────────── -->
+    <div id="modal-seguridad" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;">Acceso Administrativo</h3>
+                <button onclick="cerrarSeguridad()" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body" style="text-align:center;">
+                <p style="margin-bottom:20px;color:var(--text-muted);font-size:0.8rem;">
+                    Contraseña requerida para gestionar datos y configuración.
+                </p>
+                <input type="password" id="admin-pass-inp" class="inp-admin" placeholder="••••••••"
+                    onkeyup="if(event.key==='Enter') validarAccesoAdmin()">
+                <button onclick="validarAccesoAdmin()" class="btn-primary"
+                    style="width:100%;margin-top:10px;height:48px;">Entrar →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL NUEVO CONDUCTOR ──────────────────── -->
+    <div id="modal-nuevo-chofer" class="modal-overlay" style="display:none">
+        <div class="modal-card" style="max-width:420px">
+            <div class="modal-header">
+                <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;">➕ Nuevo Conductor</h3>
+                <button onclick="cerrarModalNuevoChofer()" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding:20px">
+                <div class="field" style="margin:0">
+                    <label>ID del Conductor *</label>
+                    <input type="text" id="nc-idat" class="inp-inline" placeholder="Ej: CH001"
+                        onkeydown="if(event.key==='Enter')document.getElementById('nc-nom').focus()">
+                </div>
+                <div class="field" style="margin:0">
+                    <label>Nombre Completo *</label>
+                    <input type="text" id="nc-nom" class="inp-inline" placeholder="Apellido, Nombre"
+                        onkeydown="if(event.key==='Enter')document.getElementById('nc-cel').focus()">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="field" style="margin:0">
+                        <label>Celular</label>
+                        <input type="text" id="nc-cel" class="inp-inline" placeholder="11xxxxxxxx">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label>DNI</label>
+                        <input type="text" id="nc-dni" class="inp-inline" placeholder="xxxxxxxx">
+                    </div>
+                </div>
+                <div class="field" style="margin:0">
+                    <label>Zona Preferencial</label>
+                    <input type="text" id="nc-zon" class="inp-inline" placeholder="Ej: ZONA NORTE">
+                </div>
+                <div class="field" style="margin:0">
+                    <label>Dirección de Domicilio</label>
+                    <input type="text" id="nc-dir" class="inp-inline" placeholder="Calle Nº, Localidad">
+                </div>
+                <div class="field" style="margin:0">
+                    <label>Fecha de Ingreso</label>
+                    <input type="date" id="nc-ing" class="inp-inline">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:4px">
+                    <button onclick="cerrarModalNuevoChofer()" class="btn-cancel"
+                        style="flex:1;padding:10px">Cancelar</button>
+                    <button onclick="confirmarNuevoChofer()" class="btn-save"
+                        style="flex:2;padding:10px;font-size:0.82rem">✓ Guardar Conductor</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── LOADING / ERROR ────────────────────────── -->
+    <div id="loading">
+        <div class="spinner"></div>Cargando...
+    </div>
+    <div id="error-msg"></div>
+
+    <!-- ── PÁGINA: DESPACHO ───────────────────────── -->
+    <div class="page" id="page-despacho">
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-val" id="stat-total">—</div>
+                <div class="stat-label">Choferes</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val" id="stat-enviados">—</div>
+                <div class="stat-label">Enviados</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val" id="stat-clientes">—</div>
+                <div class="stat-label">Clientes</div>
+            </div>
+            <div class="stat">
+                <div class="stat-val" id="stat-pendientes">—</div>
+                <div class="stat-label">Pendientes</div>
+            </div>
+        </div>
+        <div class="search-row">
+            <input type="text" id="search-despacho" placeholder="Buscar chofer..." oninput="Handlers.filtrarChoferes()">
+            <button class="btn-sm" id="btn-marcar-todos" onclick="toggleMarcarTodos()">✓ Marcar todos</button>
+        </div>
+        <div class="choferes-grid" id="choferes-grid"></div>
+        <div class="empty-state" id="empty-despacho" style="display:none">No hay choferes para mostrar.</div>
+    </div>
+
+    <!-- ── PÁGINA: CLIENTES ───────────────────────── -->
+    <div class="page" id="page-clientes">
+        <div class="search-row">
+            <input type="text" id="search-clientes" placeholder="Buscar cliente o chofer..."
+                oninput="Handlers.filtrarClientes()">
+            <button class="btn-sm btn-accent" onclick="agregarChofer()">+ Nuevo Cliente</button>
+        </div>
+        <div class="clientes-table-wrap">
+            <table class="clientes-table">
+                <thead>
+                    <tr>
+                        <th>CLIENTE</th>
+                        <th>CHOFER</th>
+                        <th>CELULAR</th>
+                        <th>HORARIO</th>
+                        <th>DIRECCIÓN</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-clientes">
+                    <tr>
+                        <td colspan="6" class="empty-state">Cargando...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── PÁGINA: RECORRIDOS ─────────────────────── -->
+    <div class="page" id="page-recorridos">
+        <div class="recorridos-header">
+            <h2>🗺️ Hoja de Recorridos</h2>
+            <div class="rec-actions">
+                <button class="btn-sm btn-accent" onclick="agregarLocalidad()">+ Nueva Localidad</button>
+            </div>
+        </div>
+        <div id="recorridos-container"></div>
+    </div>
+
+    <!-- ── PÁGINA: COLECTAS ───────────────────────── -->
+    <div class="page" id="page-colectas">
+        <div class="recorridos-header">
+            <h2>🕒 Horario Colectas</h2>
+            <div class="rec-actions">
+                <button class="btn-sm" onclick="Handlers.mostrarConfirmarHistorial()"
+                    title="Pasar colectas terminadas al historial">📦 Guardar Historial</button>
+                <button class="btn-sm" onclick="limpiarColectas()" title="Borrar horarios de hoy">🧹 Limpiar
+                    hoy</button>
+            </div>
+        </div>
+        <div class="search-row">
+            <input type="text" id="search-colectas" placeholder="Buscar cliente o chofer..."
+                oninput="Handlers.filtrarColectas()">
+        </div>
+        <div class="clientes-table-wrap">
+            <table class="clientes-table">
+                <thead>
+                    <tr>
+                        <th>CLIENTE</th>
+                        <th>CHOFER</th>
+                        <th>CELULAR</th>
+                        <th style="width:80px;text-align:center">COLEC.</th>
+                        <th style="width:100px;text-align:center">HORA</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-colectas">
+                    <tr>
+                        <td colspan="6" class="empty-state">Cargando...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── PÁGINA: HISTORIAL ─────────────────────── -->
+    <div class="page" id="page-historial">
+        <div class="recorridos-header">
+            <h2>🗂️ Historial de Colectas</h2>
+            <div class="rec-actions">
+                <button class="btn-sm" onclick="Handlers.limpiarHistorial()" style="color:#ff8080">🗑️ Borrar
+                    Todo</button>
+                <button class="btn-sm" onclick="irA('colectas')">Cerrar</button>
+            </div>
+        </div>
+        <div class="clientes-table-wrap">
+            <table class="db-table table-historial">
+                <thead>
+                    <tr>
+                        <th>FECHA</th>
+                        <th>CLIENTE</th>
+                        <th>DIRECCIÓN</th>
+                        <th>CHOFER</th>
+                        <th>CELULAR</th>
+                        <th>LLEGADA</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-historial">
+                    <tr>
+                        <td colspan="4" class="empty-state">No hay registros en el historial.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── PÁGINA: BASE DE DATOS ──────────────────── -->
+    <div class="page" id="page-db-choferes">
+        <div class="recorridos-header">
+            <h2>📂 Base de Datos de Choferes</h2>
+            <div class="rec-actions">
+                <button id="btn-new-db" class="btn-sm btn-accent" onclick="agregarFilaDB()" style="display:none">+ Nuevo
+                    Registro</button>
+                <button class="btn-sm" onclick="irA('despacho')">Cerrar</button>
+            </div>
+        </div>
+        <div class="search-row">
+            <input type="text" id="search-db-choferes" placeholder="Buscar chofer o DNI..."
+                oninput="Handlers.filtrarDB()">
+        </div>
+        <div class="clientes-table-wrap">
+            <table class="db-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>CONDUCTOR</th>
+                        <th>CELULAR</th>
+                        <th>DNI</th>
+                        <th>ZONA PREFERENCIAL</th>
+                        <th>DIRECCIÓN</th>
+                        <th>FECHA INGRESO</th>
+                        <th>ACTIVO</th>
+                        <th>ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-db">
+                    <tr>
+                        <td colspan="9" class="empty-state">Iniciá sesión para ver datos.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── MODAL HISTORIAL CONFIRM ────────────────── -->
+    <div id="modal-historial-confirm" class="modal-overlay" style="display:none">
+        <div class="modal-card" style="max-width:380px;border-top:4px solid #3498db">
+            <div class="modal-header">
+                <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;color:#3498db">📦 Guardar Historial
+                </h3>
+                <button onclick="document.getElementById('modal-historial-confirm').style.display='none'"
+                    class="btn-close">✕</button>
+            </div>
+            <div class="modal-body" style="text-align:center;padding:25px">
+                <div style="font-size:2.5rem;margin-bottom:15px">📂</div>
+                <h4 style="margin:0 0 10px;font-size:1.1rem">¿Confirmar guardar en el historial?</h4>
+                <p style="margin:0 0 20px;font-size:0.85rem;color:var(--text-muted)">
+                    Se guardarán los clientes marcados hoy y se limpiará la lista actual.
+                </p>
+                <div style="display:flex;gap:10px">
+                    <button onclick="Handlers.guardarHistorial()" class="btn-primary"
+                        style="flex:2;background:#3498db;border-color:#3498db">Sí, Guardar</button>
+                    <button onclick="document.getElementById('modal-historial-confirm').style.display='none'"
+                        class="btn-cancel" style="flex:1">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── PÁGINA: ADMIN ──────────────────────────── -->
+    <div id="page-admin" class="page" style="max-width:480px;margin:40px auto;padding:24px;">
+        <h1
+            style="color:var(--accent);font-family:'Syne',sans-serif;margin-bottom:24px;text-align:center;font-size:1.5rem;">
+            🛡️ Administración
+        </h1>
+        <div class="admin-menu-grid">
+            <button class="btn-admin-opt" onclick="irA('db-choferes')">
+                <span style="font-size:1.5rem;">📂</span>
+                <div><strong>Base de Datos Choferes</strong><small>Ver, editar y agregar nuevos conductores</small>
+                </div>
+            </button>
+            <button class="btn-admin-opt" onclick="toggleConfigInputs()">
+                <span style="font-size:1.5rem;">⚙️</span>
+                <div><strong>Conexión Sheets</strong><small>Modificar IDs de planillas y URL del macro</small></div>
+            </button>
+            <button class="btn-admin-opt danger" onclick="resetConfig()">
+                <span style="font-size:1.5rem;">🗑️</span>
+                <div><strong>Borrar Configuración</strong><small>Eliminar todos los datos guardados en este
+                        navegador</small></div>
+            </button>
+        </div>
+
+        <div id="admin-config-technical"
+            style="display:none;margin-top:30px;border-top:1px solid var(--border);padding-top:25px;">
+            <h3
+                style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;text-transform:uppercase;letter-spacing:1px;">
+                ⚙️ Ajustes Técnicos
+            </h3>
+            <div class="field">
+                <label>ID Planilla Base (Recorridos/Colectas)</label>
+                <input type="text" id="inp-sheet-id" placeholder="1QFuIRe3PDc6WiVXIHEWT1Trc1ziH5lBgHDkvG8mJu6A">
+            </div>
+            <div class="field">
+                <label>ID Planilla Despachos</label>
+                <input type="text" id="inp-sid-rec" placeholder="140yHhZ6yOsqa-0L-Fu_G8ufDjNR0tSuscRgw2dJ5OzY">
+            </div>
+            <div class="field">
+                <label>API Key de Google</label>
+                <input type="text" id="inp-api-key" placeholder="AIzaSy...">
+            </div>
+            <div class="field">
+                <label>URL del Apps Script Web App</label>
+                <input type="text" id="inp-apps-url" placeholder="https://script.google.com/macros/s/...">
+            </div>
+            <button class="btn-primary" onclick="guardarConfig()" style="width:100%;margin-top:10px;">Guardar Cambios
+                →</button>
+            <div class="hint" style="margin-top:20px;">
+                <strong style="color:var(--text)">Ayuda:</strong> Encontrás el ID en la URL de la planilla, entre
+                <code>/d/</code> y <code>/edit</code>.
+            </div>
+        </div>
+    </div>
+
+    <!-- ── TOAST ──────────────────────────────────── -->
+    <div id="toast"></div>
+
+    <!-- ── MODAL ACCESO ADMINISTRATIVO ──────────────── -->
+    <div id="modal-admin-pass" class="modal-overlay" style="display:none">
+        <div class="modal-card modal-admin">
+            <div class="modal-header">
+                <h3>Acceso Administrativo</h3>
+                <button onclick="Handlers.cerrarAdminModal()" class="btn-close">✕</button>
+            </div>
+            <div class="modal-body-admin">
+                <p class="admin-hint">Contraseña requerida para gestionar datos y configuración.</p>
+                <div class="admin-input-wrap">
+                    <input type="password" id="inp-admin-pass" placeholder="••••••••"
+                        onkeydown="if(event.key==='Enter') Handlers.confirmarAdminModal()">
+                </div>
+                <button onclick="Handlers.confirmarAdminModal()" class="btn-admin-submit">Entrar →</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
