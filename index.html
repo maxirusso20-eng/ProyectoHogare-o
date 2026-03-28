@@ -9,7 +9,6 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script src="config.js"></script>
 </head>
 
 <body>
@@ -92,25 +91,6 @@
             </div>
         </div>
     </header>
-
-    <!-- ── MODAL SEGURIDAD ────────────────────────── -->
-    <div id="modal-seguridad" class="modal-overlay">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;">Acceso Administrativo</h3>
-                <button onclick="cerrarSeguridad()" class="btn-close">✕</button>
-            </div>
-            <div class="modal-body" style="text-align:center;">
-                <p style="margin-bottom:20px;color:var(--text-muted);font-size:0.8rem;">
-                    Contraseña requerida para gestionar datos y configuración.
-                </p>
-                <input type="password" id="admin-pass-inp" class="inp-admin" placeholder="••••••••"
-                    onkeyup="if(event.key==='Enter') validarAccesoAdmin()">
-                <button onclick="validarAccesoAdmin()" class="btn-primary"
-                    style="width:100%;margin-top:10px;height:48px;">Entrar →</button>
-            </div>
-        </div>
-    </div>
 
     <div id="modal-nuevo-chofer" class="modal-overlay" style="display:none">
         <div class="modal-card">

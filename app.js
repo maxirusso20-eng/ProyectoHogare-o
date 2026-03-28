@@ -76,6 +76,23 @@ async function hideSplashScreen() {
   }, timeToShow);
 }
 
+// ─── PASSWORD HELPERS ────────────────────────────────────────────
+async function hashPass(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function checkAdminPass(pass) {
+  const stored = Storage.get('col_admin_hash');
+  if (!stored) return false;
+  return (await hashPass(pass)) === stored;
+}
+async function initAdminHash() {
+  if (!Storage.get('col_admin_hash')) {
+    // Primera ejecución: guardar hash del password por defecto
+    Storage.set('col_admin_hash', await hashPass('Logistica2026'));
+  }
+}
+
 // ─── HELPERS ─────────────────────────────────────────────────────
 function escHTML(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -132,10 +149,10 @@ const Storage = {
   loadConfig() {
     const env = window.APP_CONFIG || {};
     return {
-      sheetId: Storage.get('col_sid') || env.sheetId || '1QFuIRe3PDc6WiVXIHEWT1Trc1ziH5lBgHDkvG8mJu6A',
-      apiKey: Storage.get('col_key') || env.apiKey || 'AIzaSyCGHbIjzNTbHIAbzsmFgStgAMg0j6XixWc',
-      appsUrl: Storage.get('col_url') || env.appsUrl || 'https://script.google.com/macros/s/AKfycbwSJqACva-ZXbyukzIfRyb49khr45VCkKMa3RFpwfea6l3u_ihhBK-5EgknFDIgQ3lFKQ/exec',
-      sheetIdRec: Storage.get('col_sid_rec') || env.sheetIdRec || Storage.get('col_sid') || env.sheetId || '140yHhZ6yOsqa-0L-Fu_G8ufDjNR0tSuscRgw2dJ5OzY'
+      sheetId: Storage.get('col_sid') || env.sheetId || '',
+      apiKey: Storage.get('col_key') || env.apiKey || '',
+      appsUrl: Storage.get('col_url') || env.appsUrl || '',
+      sheetIdRec: Storage.get('col_sid_rec') || env.sheetIdRec || Storage.get('col_sid') || '',
     };
   },
   saveConfig(c) { Storage.set('col_sid', c.sheetId); Storage.set('col_key', c.apiKey); Storage.set('col_url', c.appsUrl); Storage.set('col_sid_rec', c.sheetIdRec); },
@@ -240,14 +257,11 @@ window.dbLogistica = LocalDB;
 // ─── MIGRATOR (Descarga Única) ───────────────────────────────────
 const Migrator = {
   async run() {
-    const backupID = '1QFuIRe3PDc6WiVXIHEWT1Trc1ziH5lBgHDkvG8mJu6A';
-    const backupKey = 'AIzaSyCGHbIjzNTbHIAbzsmFgStgAMg0j6XixWc';
+    const apiKey = S.config?.apiKey;
+    const sheetId = S.config?.sheetId;
+    const sheetIdRec = S.config?.sheetIdRec || sheetId;
 
-    const apiKey = S.config?.apiKey || backupKey;
-    const sheetId = S.config?.sheetId || backupID;
-    const sheetIdRec = S.config?.sheetIdRec || '140yHhZ6yOsqa-0L-Fu_G8ufDjNR0tSuscRgw2dJ5OzY';
-
-    if (!apiKey) return Render.toast('No hay configuración de API para migrar.', 'err');
+    if (!apiKey || !sheetId) return Render.toast('Configurá primero la conexión a Google Sheets (panel Admin).', 'err');
     Render.cargando(true);
     try {
       Render.toast('📥 Iniciando migración final...', 'ok');
@@ -1009,7 +1023,7 @@ const Handlers = {
     finally { document.getElementById('page-recorridos').classList.add('active'); }
   },
 
-  async agregarLocalidad() {
+  async abrirModalLocalidad() {
     const modal = document.getElementById('modal-nueva-localidad');
     const inp = document.getElementById('nl-inp');
     if (!modal || !inp) return;
@@ -1026,29 +1040,49 @@ const Handlers = {
       return;
     }
 
-    const zonas = await Store.cargarRecorridos();
-    // Prioridad: "ZONA OESTE" como pide el usuario, o la primera disponible.
-    let targetZona = zonas.find(z => z.nombre?.toUpperCase().includes('OESTE')) || zonas[0];
-
-    if (!targetZona) {
-      targetZona = { id: Date.now(), nombre: 'ZONA OESTE', filas: [] };
-      zonas.push(targetZona);
+    // Reactividad: Asegurar que S.recorridos esté poblado
+    if (!S.recorridos || S.recorridos.length === 0) {
+      S.recorridos = await Store.cargarRecorridos();
     }
 
-    const newRowId = Math.max(0, ...zonas.flatMap(z => z.filas.map(f => f.id))) + 1;
-    targetZona.filas.push({
+    // Buscar "ZONA OESTE" (exigencia del Senior Architect) o la primera disponible
+    let targetZona = S.recorridos.find(z => z.nombre?.toUpperCase().includes('OESTE')) || S.recorridos[0];
+    if (!targetZona) {
+      targetZona = { id: Date.now(), nombre: 'ZONA OESTE', filas: [] };
+      S.recorridos.push(targetZona);
+    }
+
+    // Generar un ID único para la nueva fila (Reactividad local)
+    const newRowId = "LOCAL_" + Date.now();
+    const nuevaFila = {
       id: newRowId,
       localidad: loc,
       idChofer: '',
       nombreChofer: '',
       colecta: false,
       colectan: false
-    });
+    };
 
-    Storage.saveRecOverride(S.hojaRecorridos, newRowId, 'localidad', loc);
-    Render.recorridos(zonas);
-    Render.toast(`📍 ${loc} agregada a ${targetZona.nombre}`, 'ok');
+    targetZona.filas.push(nuevaFila);
+
+    // Re-render instantáneo de la UI (Reactividad)
+    Render.recorridos(S.recorridos);
     window.cerrarModalNuevaLocalidad();
+
+    // Auto-guardado persistente en segundo plano
+    Storage.saveRecOverride(S.hojaRecorridos, newRowId, 'localidad', loc);
+    Storage.saveRecOverride(S.hojaRecorridos, newRowId, 'zona_manual', targetZona.nombre);
+
+    // Feedback Premium: Scroll y Destello Neon
+    setTimeout(() => {
+      const rowEl = document.getElementById(`rec-tr-${newRowId}`);
+      if (rowEl) {
+        rowEl.classList.add('row-success-flash');
+        rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+
+    Render.toast(`✓ ${loc} agregada reactivamente a ${targetZona.nombre}`, 'ok');
   },
 
   guardarRecField(rowIndex, field, value) {
@@ -1082,12 +1116,6 @@ const Handlers = {
   async eliminarZona(nombre, ids) {
     if (!confirm(`¿Borrar TODAS las localidades de ${nombre}?`)) return;
     Render.toast('✓ Zona eliminada localmente.', 'ok'); Handlers.renderRecorridos();
-  },
-
-  async agregarLocalidad() {
-    const loc = prompt('Nombre de la nueva localidad:');
-    if (!loc) return;
-    Render.toast('✓ Localidad agregada localmente.', 'ok'); Handlers.renderRecorridos();
   },
 
   async cargarDB() {
@@ -1217,8 +1245,8 @@ const Handlers = {
   },
 
   limpiarHistorial() {
-    Handlers.abrirAdminModal((pass) => {
-      if (pass !== 'Logistica2026') return Render.toast('⚠ Clave incorrecta', 'err');
+    Handlers.abrirAdminModal(async (pass) => {
+      if (!(await checkAdminPass(pass))) return Render.toast('⚠ Clave incorrecta', 'err');
       if (!confirm('¿ESTÁ SEGURO? Esta acción borrará permanentemente todo el historial local.')) return;
       Storage.clearHistorial(); Handlers.cargarHistorial(); Render.toast('✓ Historial eliminado', 'ok');
     });
@@ -1341,7 +1369,7 @@ document.addEventListener('click', e => {
   if (a === 'eliminar-rec-fila') Handlers.eliminarRecFila(r); if (a === 'eliminar-zona') Handlers.eliminarZona(n, JSON.parse(el.dataset.ids || '[]'));
   if (a === 'editar-db') Handlers.editarDB(id); if (a === 'guardar-db') Handlers.guardarDB(id); if (a === 'cancelar-db') Handlers.cancelarDB(id); if (a === 'eliminar-db') Handlers.eliminarDB(id);
   if (a === 'nuevo-conductor') window.agregarFilaDB();
-  if (a === 'nueva-localidad') window.agregarLocalidad();
+  if (a === 'nueva-localidad') Handlers.abrirModalLocalidad();
 });
 
 document.addEventListener('change', e => {
@@ -1370,16 +1398,30 @@ window.cerrarModalNuevaLocalidad = () => {
   if (!m) return;
   m.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.98)' }], { duration: 200, easing: 'ease-in' }).onfinish = () => m.style.display = 'none';
 };
-window.abrirSeguridad = () => { if (S.dbAutenticado) irA('admin'); else { document.getElementById('modal-seguridad').style.display = 'flex'; document.getElementById('admin-pass-inp').focus(); } };
-window.cerrarSeguridad = () => { document.getElementById('modal-seguridad').style.display = 'none'; document.getElementById('admin-pass-inp').value = ''; };
-window.validarAccesoAdmin = () => { if (document.getElementById('admin-pass-inp').value === 'Logistica2026') { S.dbAutenticado = true; window.cerrarSeguridad(); irA('db-choferes'); document.getElementById('btn-new-db').style.display = 'inline-block'; Handlers.cargarDB(); Render.toast('🔐 Acceso Concedido', 'ok'); } else { Render.toast('❌ Contraseña Incorrecta', 'err'); document.getElementById('admin-pass-inp').value = ''; document.getElementById('admin-pass-inp').focus(); } };
+window.abrirSeguridad = () => {
+  if (S.dbAutenticado) {
+    irA('admin');
+  } else {
+    Handlers.abrirAdminModal(async (pass) => {
+      if (await checkAdminPass(pass)) {
+        S.dbAutenticado = true;
+        irA('db-choferes');
+        document.getElementById('btn-new-db').style.display = 'inline-block';
+        Handlers.cargarDB();
+        Render.toast('🔐 Acceso Concedido', 'ok');
+      } else {
+        Render.toast('❌ Contraseña Incorrecta', 'err');
+      }
+    });
+  }
+};
 window.guardarConfig = () => { Storage.saveConfig({ sheetId: document.getElementById('inp-sheet-id').value.trim(), apiKey: document.getElementById('inp-api-key').value.trim(), appsUrl: document.getElementById('inp-apps-url').value.trim(), sheetIdRec: document.getElementById('inp-sid-rec').value.trim() }); Render.toast('✓ Configuración Guardada', 'ok'); location.reload(); };
 window.resetConfig = () => { if (confirm('¿Borrar configuración?')) { Storage.resetAll(); location.reload(); } };
 window.toggleConfigInputs = () => { const el = document.getElementById('admin-config-technical'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; };
 window.toggleTheme = () => { const root = document.documentElement; const newTheme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', newTheme); Storage.saveTheme(newTheme); const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = newTheme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'; };
 window.toggleMenu = (f) => { const s = document.getElementById('sidebar'); const o = document.getElementById('sidebar-overlay'); if (!s || !o) return; const shouldOpen = typeof f === 'boolean' ? f : !s.classList.contains('open'); s.classList.toggle('open', shouldOpen); o.classList.toggle('show', shouldOpen); };
 window.cerrarAdmin = () => irA('despacho');
-window.agregarLocalidad = () => Handlers.agregarLocalidad();
+window.abrirModalLocalidad = () => Handlers.abrirModalLocalidad();
 window.agregarChofer = () => Handlers.agregarCliente();
 window.agregarFilaDB = () => {
   const inputId = document.getElementById('nc-idat');
@@ -1410,6 +1452,7 @@ window.recargarPagina = () => irA(S.pagina); window.toggleMarcarTodos = () => Ha
 
 // ─── INIT ────────────────────────────────────────────────────────
 async function iniciar() {
+  await initAdminHash();
   const cfg = Storage.loadConfig();
   // Pre-llenamos los campos de config con los valores actuales
   const fillCfg = () => {
@@ -1418,9 +1461,12 @@ async function iniciar() {
       if (el) el.value = [cfg.sheetId, cfg.apiKey, cfg.appsUrl, cfg.sheetIdRec][i] || '';
     });
   };
-  setTimeout(fillCfg, 100);
+  S.config = cfg;
   if (!cfg.sheetId || !cfg.apiKey) { irA('admin'); return; }
-  S.config = cfg; S.hojaDespacho = Storage.loadHojaDespacho(); S.hojaClientes = Storage.loadHojaCli(); S.hojaRecorridos = Storage.loadHojaRec(); S.enviados = Storage.loadEnviados(S.hojaDespacho);
+  S.hojaDespacho = Storage.loadHojaDespacho();
+  S.hojaClientes = Storage.loadHojaCli();
+  S.hojaRecorridos = Storage.loadHojaRec();
+  S.enviados = Storage.loadEnviados(S.hojaDespacho);
 
   const theme = Storage.loadTheme(); document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = theme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro';

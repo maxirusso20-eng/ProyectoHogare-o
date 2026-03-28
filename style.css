@@ -2282,48 +2282,62 @@ h2 {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.75) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
   z-index: 10000;
   display: none;
   align-items: center;
   justify-content: center;
-  animation: modalFadeIn 0.3s ease;
+  animation: modalFadeIn 0.3s ease-out;
 }
 
 @keyframes modalFadeIn {
   from {
     opacity: 0;
-    transform: scale(0.98);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
 .modal-card {
-  background: #121212 !important;
-  border: 1px solid rgba(59, 130, 246, 0.3) !important;
-  border-radius: 16px !important;
+  background: #0f172a !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+  border-radius: 20px !important;
   width: 90%;
   max-width: 450px;
   overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 40px rgba(59, 130, 246, 0.15) !important;
-  animation: modalIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 25px rgba(59, 130, 246, 0.25) !important;
+  animation: epicZoomIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
-@keyframes modalIn {
+@keyframes epicZoomIn {
   from {
-    transform: translateY(40px) scale(0.9);
+    transform: scale(0.8);
     opacity: 0;
   }
 
   to {
-    transform: translateY(0) scale(1);
+    transform: scale(1);
     opacity: 1;
+  }
+}
+
+/* Success Flash Animation */
+.row-success-flash {
+  animation: successFlash 1.5s ease-out;
+}
+
+@keyframes successFlash {
+  0% {
+    background: rgba(34, 197, 94, 0.3);
+    box-shadow: inset 0 0 15px rgba(34, 197, 94, 0.5);
+  }
+
+  100% {
+    background: transparent;
   }
 }
 
