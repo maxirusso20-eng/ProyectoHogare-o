@@ -44,10 +44,26 @@ async function hideSplashScreen() {
 
   document.body.style.overflow = 'hidden';
 
+  const isFresh = S.choferesBDFull.length === 0;
   const timeToShow = 2000; // 2 segundos exactos
 
-  setTimeout(() => {
-    // Forzar sección Recorridos al iniciar fade-out
+  // Iniciar sincronización AUTOMÁTICA en paralelo inmediatamente
+  const syncJob = Store.syncEverything();
+
+  setTimeout(async () => {
+    // Si el localStorage está vacío, la sincronización es obligatoria
+    if (isFresh) {
+      const syncStatus = document.getElementById('sync-text');
+      if (syncStatus) syncStatus.textContent = "Hidratación inicial obligatoria...";
+      try {
+        // Esperamos a que la sincronización termine o falle (max 5 seg adicionales para no bloquear por siempre)
+        await Promise.race([syncJob, new Promise(r => setTimeout(r, 5000))]);
+      } catch (e) {
+        console.warn("Sincronización inicial falló o tardó demasiado");
+      }
+    }
+
+    // Forzar sección Recorridos al iniciar
     if (typeof irA === 'function') irA('recorridos');
 
     splash.classList.add('fade-out');
@@ -135,7 +151,6 @@ const Storage = {
     Storage.setJSON(`col_rec_ovr_${hoja}`, ovr);
   },
 
-  // 👇 ACÁ ESTABA EL ERROR: Ahora se separa por Planilla 👇
   loadOverridesClientes(hoja) { return Storage.getJSON(`col_cli_ovr_${hoja}`, {}); },
   saveOverrideCliente(hoja, rowIndex, data) {
     const overrides = Storage.loadOverridesClientes(hoja);
@@ -196,17 +211,14 @@ const LocalDB = {
     if (!localStorage.getItem('dbLogistica')) {
       localStorage.setItem('dbLogistica', JSON.stringify({ conductores: [], clientes_SEMANA: [], clientes_SABADO: [] }));
     }
-    // Sincronizar S.dbChoferes con localStorage si existe la clave específica solicitada
     const localDocs = localStorage.getItem('dbChoferes');
     if (localDocs) S.dbChoferes = JSON.parse(localDocs);
   },
   getDB() { return JSON.parse(localStorage.getItem('dbLogistica')); },
   saveDB(data) { localStorage.setItem('dbLogistica', JSON.stringify(data)); },
 
-  // Sincronización rápida para Choferes
   saveChoferes(lista) {
     localStorage.setItem('dbChoferes', JSON.stringify(lista));
-    // Opcional: También guardamos en el objeto unificado
     const db = this.getDB();
     db.conductores = lista;
     this.saveDB(db);
@@ -228,7 +240,6 @@ window.dbLogistica = LocalDB;
 // ─── MIGRATOR (Descarga Única) ───────────────────────────────────
 const Migrator = {
   async run() {
-    // Referencia histórica de seguridad por si config.js está comentado
     const backupID = '1QFuIRe3PDc6WiVXIHEWT1Trc1ziH5lBgHDkvG8mJu6A';
     const backupKey = 'AIzaSyCGHbIjzNTbHIAbzsmFgStgAMg0j6XixWc';
 
@@ -288,6 +299,44 @@ const API = {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Sheets API ${res.status}`);
     return (await res.json()).values || [];
+  },
+
+  async saveChofer(c, cfg) {
+    if (!cfg?.appsUrl) throw new Error("Apps Script URL no configurada");
+    const body = {
+      action: 'addChofer',
+      docid: cfg.sheetIdRec || cfg.sheetId,
+      nombre: c.nombre,
+      id: c.id,
+      tel: c.tel,
+      dni: c.dni,
+      zona: c.zona,
+      direccion: c.direccion,
+      condicion: c.condicion
+    };
+    const res = await fetch(cfg.appsUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      cache: 'no-cache',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return { ok: true };
+  },
+
+  parseDBChoferes(rows) {
+    if (!rows || rows.length < 2) return [];
+    return rows.slice(1).map((r, i) => ({
+      id: i + 1, // Row relative ID
+      choferIdAt: r[0]?.toString().trim() || '', // ID CH001
+      nombre: r[1]?.toString().trim() || '',
+      tel: r[2]?.toString().trim() || '',
+      dni: r[3]?.toString().trim() || '',
+      zona: r[4]?.toString().trim() || '',
+      direccion: r[5]?.toString().trim() || '',
+      condicion: r[6]?.toString().trim() || 'TITULAR',
+      activo: r[7]?.toString().toUpperCase() !== 'FALSE'
+    })).filter(c => c.nombre);
   },
 
   getIndices(rows) {
@@ -396,19 +445,7 @@ const API = {
     return Object.values(zonasMap);
   },
 
-  parseDBChoferes(rows) {
-    const result = [];
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      if (!r[1] && !r[0]) continue;
-      result.push({
-        id: i + 1, choferIdAt: r[0] || '', nombre: r[1] || '', tel: r[2] || '',
-        dni: r[3] || '', zona: r[4] || '', direccion: r[5] || '', condicion: r[6] || '',
-        activo: r[7]?.toString().toUpperCase() === 'TRUE',
-      });
-    }
-    return result;
-  },
+  // parseDBChoferes duplicate removed for cleanliness
 };
 
 // ─── STORE ───────────────────────────────────────────────────────
@@ -499,6 +536,44 @@ const Store = {
     S.dbChoferesFiltrados = [...S.dbChoferes];
     return S.dbChoferes;
   },
+
+  async syncEverything() {
+    Render.syncIndicator(true);
+    const syncText = document.getElementById('sync-text');
+    if (syncText) syncText.textContent = "Actualizando base de datos...";
+
+    const isFresh = S.choferesBDFull.length === 0;
+
+    if (isFresh) {
+      if (S.pagina === 'despacho') Render.skeletonDespacho();
+      if (S.pagina === 'clientes') Render.skeletonTabla('tbody-clientes');
+      if (S.pagina === 'recorridos') Render.skeletonRecorridos();
+    }
+
+    try {
+      await Promise.all([
+        this.cargarDB(),
+        this.cargarDespacho()
+      ]);
+
+      if (S.pagina === 'despacho') { Render.despacho(S.choferes); Render.stats(); }
+      if (S.pagina === 'clientes') Render.clientes(S.clientes);
+      if (S.pagina === 'db-choferes') Render.db(S.dbChoferes);
+      if (S.pagina === 'recorridos') {
+        const zonas = await this.cargarRecorridos();
+        Render.recorridos(zonas);
+      }
+
+      Render.setStatus('ok');
+    } catch (e) {
+      console.warn("Auto-sync falló:", e);
+      Render.setStatus('error');
+      Render.toast("Sincronización fallida. Usando datos locales.", "info");
+    } finally {
+      Render.syncIndicator(false);
+      S.initialLoadFinished = true;
+    }
+  }
 };
 
 // ─── RENDER ──────────────────────────────────────────────────────
@@ -635,21 +710,46 @@ const Render = {
     return `<tr data-rowid="${f.id}" draggable="true" id="rec-tr-${f.id}"><td><span class="drag-handle" title="Arrastrar">⠿</span></td><td><input class="rec-inp" value="${x(f.localidad)}" placeholder="Localidad" data-action="guardar-rec-field" data-row="${f.id}" data-field="localidad"></td><td><input class="rec-inp" id="rec-id-${f.id}" value="${x(S.choferesBDFull.find(k => k.nombre === f.nombreChofer)?.choferIdAt || f.idChofer || '')}" placeholder="ID" data-action="id-select" data-row="${f.id}" style="text-align:center"></td><td><span class="rec-nombre-display" id="rec-nom-${f.id}">${x(f.nombreChofer || '— Sin asignar —')}</span></td><td><button class="btn-icon" data-action="eliminar-rec-fila" data-row="${f.id}">✕</button></td></tr>`;
   },
 
+  syncIndicator(show) {
+    const el = document.getElementById('sync-indicator');
+    if (el) el.style.display = show ? 'flex' : 'none';
+  },
+
   db(lista) {
     const tbody = document.getElementById('tbody-db');
+    if (!tbody) return;
     tbody.innerHTML = '';
-    if (!lista.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay registros.</td></tr>'; return; }
-    const condOpts = ['TITULAR', 'SEMITITULAR', 'SUPLENTE'];
-    lista.forEach(c => {
-      const tr = document.createElement('tr'); tr.id = `db-row-${c.id}`;
-      const condBadge = c.condicion ? `<span class="cond-badge cond-${(c.condicion || '').toLowerCase().replace(' ', '')}">` + x(c.condicion) + '</span>' : '—';
-      tr.innerHTML = `<td class="td-cliente">${x(c.nombre)}</td><td class="td-horario">${c.tel ? `<a class="tel-link" href="tel:${x(c.tel)}">${fmtTel(c.tel)}</a>` : '—'}</td><td>${x(c.dni)}</td><td>${x(c.zona)}</td><td class="td-dir">${x(c.direccion)}</td><td>${condBadge}</td><td class="td-acciones"><button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button><button class="btn-del" data-action="eliminar-db" data-id="${c.id}">🗑</button></td>`;
-      tbody.appendChild(tr);
-    });
+    if (!lista.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">
+        <div style="padding:40px; text-align:center;">
+          <div style="font-size:2rem; margin-bottom:10px;">📂</div>
+          <div style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#fff;">No hay conductores registrados</div>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:5px;">Iniciá la carga con el botón superior.</div>
+        </div>
+      </td></tr>`;
+      return;
+    }
+    lista.forEach((c, idx) => tbody.appendChild(this._dbRow(c, idx)));
   },
-  _dbEditRow(c) {
-    const condOpts = ['TITULAR', 'SEMITITULAR', 'SUPLENTE'].map(o => `<option value="${o}"${o === (c.condicion || '').toUpperCase() ? ' selected' : ''}>${o}</option>`).join('');
-    return `<td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}"></td><td><input class="inp-inline" id="db-in-nom-${c.id}" value="${x(c.nombre)}"></td><td><input class="inp-inline" id="db-in-tel-${c.id}" value="${x(c.tel)}"></td><td><input class="inp-inline" id="db-in-dni-${c.id}" value="${x(c.dni)}"></td><td><input class="inp-inline" id="db-in-zon-${c.id}" value="${x(c.zona)}"></td><td><input class="inp-inline" id="db-in-dir-${c.id}" value="${x(c.direccion)}"></td><td><select class="select-inline" id="db-in-cond-${c.id}"><option value="">— sin condición —</option>${condOpts}</select></td><td class="td-acciones"><button class="btn-save" data-action="guardar-db" data-id="${c.id}">✓</button><button class="btn-cancel" data-action="cancelar-db" data-id="${c.id}">✕</button></td>`;
+
+  _dbRow(c, idx) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--text-muted); font-family:monospace;">${c.choferIdAt || '—'}</td>
+      <td style="font-weight:700; color:var(--accent);">${c.nombre} ${c.activo ? '' : '<small>(Inactivo)</small>'}</td>
+      <td>${c.tel || '—'}</td>
+      <td>${c.dni || '—'}</td>
+      <td>${c.zona || '—'}</td>
+      <td>${c.direccion || '—'}</td>
+      <td style="font-size:0.7rem;"><span class="meta-chip">${c.condicion || 'TITULAR'}</span></td>
+      <td>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-icon" onclick="Handlers.editarFilaDB(${idx})" title="Editar">✏️</button>
+          <button class="btn-icon" onclick="Handlers.eliminarFilaDB(${idx})" title="Eliminar" style="opacity:0.5">🗑️</button>
+        </div>
+      </td>
+    `;
+    return tr;
   },
 
   historial(lista) {
@@ -909,6 +1009,48 @@ const Handlers = {
     finally { document.getElementById('page-recorridos').classList.add('active'); }
   },
 
+  async agregarLocalidad() {
+    const modal = document.getElementById('modal-nueva-localidad');
+    const inp = document.getElementById('nl-inp');
+    if (!modal || !inp) return;
+    inp.value = '';
+    modal.style.display = 'flex';
+    setTimeout(() => inp.focus(), 100);
+  },
+
+  async confirmarNuevaLocalidad() {
+    const inp = document.getElementById('nl-inp');
+    const loc = inp?.value?.trim();
+    if (!loc) {
+      window.cerrarModalNuevaLocalidad();
+      return;
+    }
+
+    const zonas = await Store.cargarRecorridos();
+    // Prioridad: "ZONA OESTE" como pide el usuario, o la primera disponible.
+    let targetZona = zonas.find(z => z.nombre?.toUpperCase().includes('OESTE')) || zonas[0];
+
+    if (!targetZona) {
+      targetZona = { id: Date.now(), nombre: 'ZONA OESTE', filas: [] };
+      zonas.push(targetZona);
+    }
+
+    const newRowId = Math.max(0, ...zonas.flatMap(z => z.filas.map(f => f.id))) + 1;
+    targetZona.filas.push({
+      id: newRowId,
+      localidad: loc,
+      idChofer: '',
+      nombreChofer: '',
+      colecta: false,
+      colectan: false
+    });
+
+    Storage.saveRecOverride(S.hojaRecorridos, newRowId, 'localidad', loc);
+    Render.recorridos(zonas);
+    Render.toast(`📍 ${loc} agregada a ${targetZona.nombre}`, 'ok');
+    window.cerrarModalNuevaLocalidad();
+  },
+
   guardarRecField(rowIndex, field, value) {
     Storage.saveRecOverride(S.hojaRecorridos, rowIndex, field, value);
     Render.toast('✓ Guardado local', 'ok');
@@ -1013,40 +1155,41 @@ const Handlers = {
   },
 
   async confirmarNuevoChofer() {
+    const idat = document.getElementById('nc-idat').value.trim();
     const nom = document.getElementById('nc-nom').value.trim();
-    if (!nom) {
-      Render.toast('⚠️ El nombre completo es obligatorio', 'err');
-      document.getElementById('nc-nom').focus();
-      return;
-    }
-
-    const idat = document.getElementById('nc-idat').value;
-    const btn = document.getElementById('btn-save-chofer');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+    const tel = document.getElementById('nc-cel').value.trim();
+    if (!idat || !nom || !tel) { Render.toast('ID, Nombre y Celular son obligatorios', 'err'); return; }
 
     try {
       const nuevo = {
         id: idat, choferIdAt: idat, nombre: nom,
-        tel: document.getElementById('nc-cel').value.trim(),
+        tel: tel,
         dni: document.getElementById('nc-dni').value.trim(),
         zona: document.getElementById('nc-zon').value.trim(),
         direccion: document.getElementById('nc-dir').value.trim(),
         condicion: document.getElementById('nc-cond').value || 'TITULAR',
         activo: true
       };
-      S.dbChoferes.push(nuevo);
-      LocalDB.saveChoferes(S.dbChoferes);
+
+      // 1. Guardar localmente para feedback instantáneo
+      S.dbChoferesBDFull.unshift(nuevo);
+      const db = LocalDB.getDB();
+      db.conductores = S.dbChoferesBDFull;
+      LocalDB.saveDB(db);
       Handlers.filtrarDB();
-      this.cerrarModalNuevoChofer();
-      Render.toast('✅ Conductor guardado con éxito', 'ok');
-    } catch (err) {
-      Render.toast('❌ Error al guardar: ' + err.message, 'err');
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '✔️ Guardar Conductor';
-      }
-    }
+      Handlers.cerrarModalNuevoChofer();
+      Render.toast('Conductor guardado localmente', 'ok');
+
+      // 2. Intentar sync con Sheets (Async)
+      Render.syncIndicator(true);
+      API.saveChofer(nuevo, S.config).then(res => {
+        Render.toast('Sincronizado con Google Sheets', 'ok');
+      }).catch(e => {
+        console.error("Sync error:", e);
+        Render.toast('Guardado local (Sin conexión)', 'info');
+      }).finally(() => Render.syncIndicator(false));
+
+    } catch (err) { Render.toast('Error al guardar: ' + err.message, 'err'); }
   },
 
   cerrarModalNuevoChofer() {
@@ -1197,6 +1340,8 @@ document.addEventListener('click', e => {
   if (a === 'editar-colecta') Handlers.editarColecta(r); if (a === 'guardar-colecta') Handlers.guardarColecta(r); if (a === 'cancelar-colecta') Handlers.cancelarColecta(r);
   if (a === 'eliminar-rec-fila') Handlers.eliminarRecFila(r); if (a === 'eliminar-zona') Handlers.eliminarZona(n, JSON.parse(el.dataset.ids || '[]'));
   if (a === 'editar-db') Handlers.editarDB(id); if (a === 'guardar-db') Handlers.guardarDB(id); if (a === 'cancelar-db') Handlers.cancelarDB(id); if (a === 'eliminar-db') Handlers.eliminarDB(id);
+  if (a === 'nuevo-conductor') window.agregarFilaDB();
+  if (a === 'nueva-localidad') window.agregarLocalidad();
 });
 
 document.addEventListener('change', e => {
@@ -1218,6 +1363,13 @@ document.addEventListener('keydown', e => {
 });
 
 window.irA = irA; window.cambiarHoja = cambiarHoja; window.cambiarHojaClientes = cambiarHojaClientes; window.cambiarHojaRecorrido = cambiarHojaRecorrido;
+window.abrirModalConductor = () => window.agregarFilaDB();
+window.confirmarNuevaLocalidad = () => Handlers.confirmarNuevaLocalidad();
+window.cerrarModalNuevaLocalidad = () => {
+  const m = document.getElementById('modal-nueva-localidad');
+  if (!m) return;
+  m.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.98)' }], { duration: 200, easing: 'ease-in' }).onfinish = () => m.style.display = 'none';
+};
 window.abrirSeguridad = () => { if (S.dbAutenticado) irA('admin'); else { document.getElementById('modal-seguridad').style.display = 'flex'; document.getElementById('admin-pass-inp').focus(); } };
 window.cerrarSeguridad = () => { document.getElementById('modal-seguridad').style.display = 'none'; document.getElementById('admin-pass-inp').value = ''; };
 window.validarAccesoAdmin = () => { if (document.getElementById('admin-pass-inp').value === 'Logistica2026') { S.dbAutenticado = true; window.cerrarSeguridad(); irA('db-choferes'); document.getElementById('btn-new-db').style.display = 'inline-block'; Handlers.cargarDB(); Render.toast('🔐 Acceso Concedido', 'ok'); } else { Render.toast('❌ Contraseña Incorrecta', 'err'); document.getElementById('admin-pass-inp').value = ''; document.getElementById('admin-pass-inp').focus(); } };
@@ -1230,14 +1382,25 @@ window.cerrarAdmin = () => irA('despacho');
 window.agregarLocalidad = () => Handlers.agregarLocalidad();
 window.agregarChofer = () => Handlers.agregarCliente();
 window.agregarFilaDB = () => {
-  const m = document.getElementById('modal-nuevo-chofer');
-  if (m) {
-    m.style.display = 'flex';
-    const nextId = `CH-${Date.now().toString().slice(-6)}`;
-    const idField = document.getElementById('nc-idat');
-    if (idField) idField.value = nextId;
-    document.getElementById('nc-nom').focus();
+  const inputId = document.getElementById('nc-idat');
+  const modal = document.getElementById('modal-nuevo-chofer');
+  if (!modal) return;
+
+  if (inputId) {
+    // Generar ID CH001 secuencial buscando el máximo en la flota actual (usando choferIdAt)
+    const lista = S.dbChoferesBDFull || [];
+    const maxId = lista.reduce((max, c) => {
+      const idStr = String(c.choferIdAt || '');
+      const num = parseInt(idStr.replace(/CH/gi, '') || 0);
+      return !isNaN(num) && num > max ? num : max;
+    }, 0);
+    const nextId = `CH${(maxId + 1).toString().padStart(3, '0')}`;
+    inputId.value = nextId;
   }
+
+  modal.style.display = 'flex';
+  // Fade-in effect logic if needed (optional since display flex is binary)
+  modal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' });
 };
 window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer();
 window.cerrarModalNuevoChofer = () => Handlers.cerrarModalNuevoChofer();
@@ -1264,17 +1427,17 @@ async function iniciar() {
 
   document.getElementById('sidebar-nav').style.display = 'flex'; document.getElementById('btn-menu').style.display = 'flex'; document.getElementById('btn-reload').style.display = 'block';
 
-  // Iniciamos la carga en paralelo, pero el Splash se encarga de la vista final
-  irA('recorridos');
+  // Solo hidratamos desde cache local inicialmente
+  const db = LocalDB.getDB();
+  S.dbChoferesBDFull = db.conductores || [];
+  S.choferesBDFull = S.dbChoferesBDFull;
+  S.telMap = Object.fromEntries(S.dbChoferesBDFull.map(c => [c.nombre, c.tel]));
 }
 
 // ─── EJECUCIÓN INICIAL ──────────────────────────────────────────
 // Bloqueo de scroll inmediato
 document.body.style.overflow = 'hidden';
 
-// Iniciar procesos de forma independiente para evitar bloqueos
-setTimeout(() => {
-  hideSplashScreen();
-  irA('recorridos');
-}, 2000);
+// Iniciar procesos
 iniciar();
+hideSplashScreen();
