@@ -116,10 +116,10 @@ const Storage = {
   loadConfig() {
     const env = window.APP_CONFIG || {};
     return {
-      sheetId: Storage.get('col_sid') || env.sheetId || '',
-      apiKey: env.apiKey || Storage.get('col_key') || '',
-      appsUrl: Storage.get('col_url') || env.appsUrl || '',
-      sheetIdRec: Storage.get('col_sid_rec') || env.sheetIdRec || Storage.get('col_sid') || env.sheetId || ''
+      sheetId: Storage.get('col_sid') || env.sheetId || '1QFuIRe3PDc6WiVXIHEWT1Trc1ziH5lBgHDkvG8mJu6A',
+      apiKey: Storage.get('col_key') || env.apiKey || 'AIzaSyCGHbIjzNTbHIAbzsmFgStgAMg0j6XixWc',
+      appsUrl: Storage.get('col_url') || env.appsUrl || 'https://script.google.com/macros/s/AKfycbwSJqACva-ZXbyukzIfRyb49khr45VCkKMa3RFpwfea6l3u_ihhBK-5EgknFDIgQ3lFKQ/exec',
+      sheetIdRec: Storage.get('col_sid_rec') || env.sheetIdRec || Storage.get('col_sid') || env.sheetId || '140yHhZ6yOsqa-0L-Fu_G8ufDjNR0tSuscRgw2dJ5OzY'
     };
   },
   saveConfig(c) { Storage.set('col_sid', c.sheetId); Storage.set('col_key', c.apiKey); Storage.set('col_url', c.appsUrl); Storage.set('col_sid_rec', c.sheetIdRec); },
@@ -439,7 +439,11 @@ const Store = {
       S.clientes = db[hoja] || [];
       await this.cargarChoferesBDSiNecesario();
     } else {
-      const id = S.config.sheetIdRec || S.config.sheetId;
+      const id = S.config?.sheetIdRec || S.config?.sheetId;
+      if (!id || !S.config?.apiKey) {
+        console.warn("Configuración incompleta de Google Sheets.");
+        return [];
+      }
       const [rowsCli, rowsBD] = await Promise.all([
         API.fetchSheet(id, `${S.hojaClientes}!A1:Z`, S.config.apiKey),
         API.fetchSheet(id, 'BASE DE DATOS CHOFERES', S.config.apiKey).catch(() => []),
@@ -461,7 +465,8 @@ const Store = {
       const db = LocalDB.getDB();
       S.colectas = API.parseColectas(db.base_clientes || [], S.telMap);
     } else {
-      const id = S.config.sheetIdRec || S.config.sheetId;
+      const id = S.config?.sheetIdRec || S.config?.sheetId;
+      if (!id || !S.config?.apiKey) return [];
       const rows = await API.fetchSheet(id, 'CLIENTES', S.config.apiKey);
       S.colectas = API.parseColectas(rows, S.telMap);
     }
@@ -477,6 +482,7 @@ const Store = {
       const db = LocalDB.getDB();
       rows = S.hojaRecorridos.includes('SABADO') ? db.recorridos_SABADO : db.recorridos_SEMANA;
     } else {
+      if (!S.config?.sheetId || !S.config?.apiKey) return [];
       rows = await API.fetchSheet(S.config.sheetId, S.hojaRecorridos, S.config.apiKey);
     }
     const overrides = Storage.loadRecOverrides(S.hojaRecorridos);
@@ -497,6 +503,29 @@ const Store = {
 
 // ─── RENDER ──────────────────────────────────────────────────────
 const Render = {
+  skeletonDespacho() {
+    const grid = document.getElementById('choferes-grid');
+    if (!grid) return;
+    grid.innerHTML = Array(6).fill(0).map(() => `<div class="chofer-card skeleton skeleton-card"></div>`).join('');
+    const empty = document.getElementById('empty-despacho'); if (empty) empty.style.display = 'none';
+  },
+
+  skeletonTabla(tbodyId, rows = 5, cols = 5) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.innerHTML = Array(rows).fill(0).map(() => `<tr>${Array(cols).fill(0).map(() => `<td><div class="skeleton skeleton-text"></div></td>`).join('')}</tr>`).join('');
+  },
+
+  skeletonRecorridos() {
+    const cont = document.getElementById('recorridos-container');
+    if (!cont) return;
+    cont.innerHTML = Array(3).fill(0).map(() => `
+      <div class="zona-block">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-card" style="height:150px"></div>
+      </div>`).join('');
+  },
+
   despacho(lista) {
     const grid = document.getElementById('choferes-grid');
     const empty = document.getElementById('empty-despacho');
@@ -663,13 +692,16 @@ const Render = {
 // ─── HANDLERS ────────────────────────────────────────────────────
 const Handlers = {
   async cargarDespacho() {
-    Render.cargando(true);
+    Render.skeletonDespacho();
     try {
       await Store.cargarDespacho();
       Render.despacho(S.choferes); Render.stats(); Render.setStatus('ok');
-      document.getElementById('page-despacho').classList.add('active');
-    } catch (err) { Render.setStatus('error'); Render.error(err.message); }
-    finally { Render.cargando(false); }
+    } catch (err) {
+      Render.setStatus('error');
+      Render.toast('Sincronización en curso...', 'info');
+      console.error("Error cargarDespacho:", err);
+    }
+    finally { document.getElementById('page-despacho').classList.add('active'); }
   },
 
   toggleEnviado(nombre, forzar = false) {
@@ -703,14 +735,16 @@ const Handlers = {
   },
 
   async cargarClientes() {
-    Render.cargando(true);
+    Render.skeletonTabla('tbody-clientes', 8, 6);
     try {
       await Store.cargarClientes();
       Render.clientes(S.clientesFiltrados);
       Render.setStatus('ok');
-      document.getElementById('page-clientes').classList.add('active');
-    } catch (err) { Render.toast(err.message, 'err'); }
-    finally { Render.cargando(false); }
+    } catch (err) {
+      Render.toast('Sincronización en curso...', 'info');
+      console.error("Error cargarClientes:", err);
+    }
+    finally { document.getElementById('page-clientes').classList.add('active'); }
   },
 
   editarCliente(rowIndex) {
@@ -803,7 +837,14 @@ const Handlers = {
   },
 
   async cargarColectas() {
-    try { await Store.cargarColectas(); Render.colectas(S.colectasFiltradas); } catch (err) { Render.toast(err.message, 'err'); }
+    Render.skeletonTabla('tbody-colectas', 8, 7);
+    try {
+      await Store.cargarColectas();
+      Render.colectas(S.colectasFiltradas);
+    } catch (err) {
+      Render.toast('Sincronización en curso...', 'info');
+      console.error("Error cargarColectas:", err);
+    }
   },
 
   async marcarLlegada(rowIndex, isChecked) {
@@ -856,9 +897,16 @@ const Handlers = {
   },
 
   async renderRecorridos() {
-    Render.cargando(true);
-    try { await Store.cargarChoferesBDSiNecesario(); const zonas = await Store.cargarRecorridos(); Render.recorridos(zonas); } catch (err) { Render.toast(err.message, 'err'); }
-    Render.cargando(false); document.getElementById('page-recorridos').classList.add('active');
+    Render.skeletonRecorridos();
+    try {
+      await Store.cargarChoferesBDSiNecesario();
+      const zonas = await Store.cargarRecorridos();
+      Render.recorridos(zonas);
+    } catch (err) {
+      Render.toast('Sincronización en curso...', 'info');
+      console.error("Error renderRecorridos:", err);
+    }
+    finally { document.getElementById('page-recorridos').classList.add('active'); }
   },
 
   guardarRecField(rowIndex, field, value) {
