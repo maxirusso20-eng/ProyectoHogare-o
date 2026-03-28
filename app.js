@@ -6,6 +6,7 @@
 const S = {
   config: null,
   pagina: 'recorridos',
+  seccionActual: 'recorridos', // Forzado por requerimiento de Entrada Directa
   hojaDespacho: 'DESPACHO_WHATSAPP',
   hojaClientes: 'DESPACHO_WHATSAPP',
   hojaRecorridos: 'HOJA DE RECORRIDO',
@@ -88,8 +89,8 @@ async function checkAdminPass(pass) {
 }
 async function initAdminHash() {
   if (!Storage.get('col_admin_hash')) {
-    // Primera ejecución: guardar hash del password por defecto
-    Storage.set('col_admin_hash', await hashPass('Logistica2026'));
+    // Se inicializa con la clave maestra Senior solicitada
+    Storage.set('col_admin_hash', await hashPass('Sye8m94h1M@'));
   }
 }
 
@@ -717,11 +718,12 @@ const Render = {
   },
   _zonaBlock(z) {
     const div = document.createElement('div'); div.className = 'zona-block'; div.dataset.zonaid = z.id;
-    div.innerHTML = `<div class="zona-title-row"><input class="zona-name-input" value="${x(z.nombre)}" readonly><button class="btn-del-zona" data-action="eliminar-zona" data-nombre="${x(z.nombre)}" data-ids="${x(JSON.stringify(z.filas.map(f => f.id)))}">🗑️ Borrar zona</button></div><table class="rec-table"><thead><tr><th></th><th>LOCALIDAD</th><th>ID CHOFER</th><th>NOMBRE CHOFER</th><th></th></tr></thead><tbody class="zona-tbody" data-zona="${x(z.nombre)}">${(z.filas || []).map(f => Render._recorridoFila(f)).join('')}</tbody></table>`;
+    div.innerHTML = `<div class="zona-title-row"><input class="zona-name-input" value="${x(z.nombre)}" readonly><button class="btn-del-zona" data-action="eliminar-zona" data-nombre="${x(z.nombre)}" data-ids="${x(JSON.stringify(z.filas.map(f => f.id)))}">🗑️ Borrar zona</button></div><table class="rec-table"><thead><tr><th></th><th>LOCALIDAD</th><th>ID CHOFER</th><th>NOMBRE CHOFER</th><th></th></tr></thead><tbody class="zona-tbody" data-zona="${x(z.nombre)}">${(z.filas || []).map(f => Render._recorridoFila(f, z.nombre)).join('')}</tbody></table>`;
     return div;
   },
-  _recorridoFila(f) {
-    return `<tr data-rowid="${f.id}" draggable="true" id="rec-tr-${f.id}"><td><span class="drag-handle" title="Arrastrar">⠿</span></td><td><input class="rec-inp" value="${x(f.localidad)}" placeholder="Localidad" data-action="guardar-rec-field" data-row="${f.id}" data-field="localidad"></td><td><input class="rec-inp" id="rec-id-${f.id}" value="${x(S.choferesBDFull.find(k => k.nombre === f.nombreChofer)?.choferIdAt || f.idChofer || '')}" placeholder="ID" data-action="id-select" data-row="${f.id}" style="text-align:center"></td><td><span class="rec-nombre-display" id="rec-nom-${f.id}">${x(f.nombreChofer || '— Sin asignar —')}</span></td><td><button class="btn-icon" data-action="eliminar-rec-fila" data-row="${f.id}">✕</button></td></tr>`;
+  _recorridoFila(f, zonaNombre) {
+    const trashIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
+    return `<tr data-rowid="${f.id}" draggable="true" id="rec-tr-${f.id}"><td><span class="drag-handle" title="Arrastrar">⠿</span></td><td><input class="rec-inp" value="${x(f.localidad)}" placeholder="Localidad" data-action="guardar-rec-field" data-row="${f.id}" data-field="localidad"></td><td><input class="rec-inp" id="rec-id-${f.id}" value="${x(S.choferesBDFull.find(k => k.nombre === f.nombreChofer)?.choferIdAt || f.idChofer || '')}" placeholder="ID" data-action="id-select" data-row="${f.id}" style="text-align:center"></td><td><span class="rec-nombre-display" id="rec-nom-${f.id}">${x(f.nombreChofer || '— Sin asignar —')}</span></td><td><button class="btn-del-rec" onclick="Handlers.quitarChoferDeRecorrido('${x(zonaNombre)}', '${f.id}')" title="Eliminar fila">${trashIcon}</button></td></tr>`;
   },
 
   syncIndicator(show) {
@@ -729,7 +731,7 @@ const Render = {
     if (el) el.style.display = show ? 'flex' : 'none';
   },
 
-  db(lista) {
+  database(lista) {
     const tbody = document.getElementById('tbody-db');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -743,11 +745,11 @@ const Render = {
       </td></tr>`;
       return;
     }
-    lista.forEach((c, idx) => tbody.appendChild(this._dbRow(c, idx)));
+    lista.forEach(c => tbody.appendChild(this._dbRow(c)));
   },
-
-  _dbRow(c, idx) {
+  _dbRow(c) {
     const tr = document.createElement('tr');
+    tr.id = `db-row-${c.id}`;
     tr.innerHTML = `
       <td style="color:var(--text-muted); font-family:monospace;">${c.choferIdAt || '—'}</td>
       <td style="font-weight:700; color:var(--accent);">${c.nombre} ${c.activo ? '' : '<small>(Inactivo)</small>'}</td>
@@ -758,8 +760,12 @@ const Render = {
       <td style="font-size:0.7rem;"><span class="meta-chip">${c.condicion || 'TITULAR'}</span></td>
       <td>
         <div style="display:flex; gap:6px;">
-          <button class="btn-icon" onclick="Handlers.editarFilaDB(${idx})" title="Editar">✏️</button>
-          <button class="btn-icon" onclick="Handlers.eliminarFilaDB(${idx})" title="Eliminar" style="opacity:0.5">🗑️</button>
+          <button class="btn-edit-con" onclick="Handlers.editarRegistro('${c.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          </button>
+          <button class="btn-delete-con" onclick="Handlers.borrarRegistro('${c.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
         </div>
       </td>
     `;
@@ -900,12 +906,18 @@ const Handlers = {
 
   async eliminarCliente(rowIndex) {
     const c = S.clientes.find(k => k.rowIndex === rowIndex);
-    if (!c || !confirm(`¿ELIMINAR a ${c.nombre}?`)) return;
-    S.clientes = S.clientes.filter(k => k.rowIndex !== rowIndex);
-    S.clientesFiltrados = S.clientesFiltrados.filter(k => k.rowIndex !== rowIndex);
-    S.despachoDirty = true;
-    Render.clientes(S.clientesFiltrados);
-    Render.toast('🗑️ Cliente eliminado', 'ok');
+    if (!c) return;
+    Handlers.solicitarConfirmacion(
+      '¿Eliminar Cliente?',
+      `¿Borrar a <strong>${c.nombre}</strong> de la lista?`,
+      () => {
+        S.clientes = S.clientes.filter(k => k.rowIndex !== rowIndex);
+        S.clientesFiltrados = S.clientesFiltrados.filter(k => k.rowIndex !== rowIndex);
+        S.despachoDirty = true;
+        Render.clientes(S.clientesFiltrados);
+        Render.toast('🗑️ Cliente eliminado', 'ok');
+      }
+    );
   },
 
   actualizarTelInline(rowIndex, choferNombre) {
@@ -1005,9 +1017,42 @@ const Handlers = {
     Render.colectas(S.colectasFiltradas);
   },
 
-  limpiarColectas() {
-    if (!confirm('¿Borrar todos los horarios de hoy de la memoria local?')) return;
-    Storage.clearColectas(); Handlers.cargarColectas(); Render.toast('✓ Memoria limpiada', 'ok');
+  solicitarLimpiarHoy() {
+    Handlers.solicitarConfirmacion(
+      '¿Limpiar Hoy?',
+      'Se borrarán todos los recorridos y asignaciones de la vista actual.',
+      () => Handlers.ejecutarLimpiarHoy()
+    );
+  },
+
+  solicitarConfirmacion(titulo, msg, onConfirm) {
+    const modal = document.getElementById('modal-confirm');
+    if (!modal) return;
+    document.getElementById('confirm-title').innerText = titulo;
+    document.getElementById('confirm-msg').innerHTML = msg;
+    Handlers._onConfirmCallback = onConfirm;
+    modal.style.setProperty('display', 'flex', 'important');
+  },
+
+  onConfirmAction() {
+    if (typeof Handlers._onConfirmCallback === 'function') {
+      Handlers._onConfirmCallback();
+    }
+    Handlers.cerrarConfirm();
+    Handlers._onConfirmCallback = null;
+  },
+
+  cerrarConfirm() {
+    const modal = document.getElementById('modal-confirm');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+  },
+
+  ejecutarLimpiarHoy() {
+    S.recorridos = [];
+    Storage.setJSON(`col_rec_ovr_${S.hojaRecorridos}`, {});
+    Render.recorridos([]);
+    Handlers.cerrarConfirm();
+    Render.toast('Día limpiado con éxito', 'success');
   },
 
   async renderRecorridos() {
@@ -1040,19 +1085,16 @@ const Handlers = {
       return;
     }
 
-    // Reactividad: Asegurar que S.recorridos esté poblado
     if (!S.recorridos || S.recorridos.length === 0) {
       S.recorridos = await Store.cargarRecorridos();
     }
 
-    // Buscar "ZONA OESTE" (exigencia del Senior Architect) o la primera disponible
     let targetZona = S.recorridos.find(z => z.nombre?.toUpperCase().includes('OESTE')) || S.recorridos[0];
     if (!targetZona) {
       targetZona = { id: Date.now(), nombre: 'ZONA OESTE', filas: [] };
       S.recorridos.push(targetZona);
     }
 
-    // Generar un ID único para la nueva fila (Reactividad local)
     const newRowId = "LOCAL_" + Date.now();
     const nuevaFila = {
       id: newRowId,
@@ -1065,15 +1107,12 @@ const Handlers = {
 
     targetZona.filas.push(nuevaFila);
 
-    // Re-render instantáneo de la UI (Reactividad)
     Render.recorridos(S.recorridos);
     window.cerrarModalNuevaLocalidad();
 
-    // Auto-guardado persistente en segundo plano
     Storage.saveRecOverride(S.hojaRecorridos, newRowId, 'localidad', loc);
     Storage.saveRecOverride(S.hojaRecorridos, newRowId, 'zona_manual', targetZona.nombre);
 
-    // Feedback Premium: Scroll y Destello Neon
     setTimeout(() => {
       const rowEl = document.getElementById(`rec-tr-${newRowId}`);
       if (rowEl) {
@@ -1091,15 +1130,28 @@ const Handlers = {
   },
 
   onIdSelect(inp, rowId) {
-    const idat = inp.value.trim();
-    const nomDisplay = document.getElementById(`rec-nom-${rowId}`);
+    const idat = inp.value.trim().toUpperCase();
     if (!idat) {
+      const nomDisplay = document.getElementById(`rec-nom-${rowId}`);
       if (nomDisplay) nomDisplay.textContent = "— Sin asignar —";
       Handlers.guardarRecField(rowId, 'nombreChofer', "");
       Handlers.guardarRecField(rowId, 'idChofer', "");
       return;
     }
-    const found = S.choferesBDFull.find(c => c.choferIdAt && c.choferIdAt.toUpperCase() === idat.toUpperCase());
+
+    if (!S.recorridos) S.recorridos = [];
+    const currentZona = S.recorridos.find(z => z.filas.some(f => f.id == rowId));
+    if (currentZona) {
+      const existe = currentZona.filas.some(f => f.id != rowId && f.idChofer && f.idChofer.toUpperCase() === idat);
+      if (existe) {
+        Render.toast('El chofer ya está en esta zona', 'error');
+        inp.value = "";
+        return;
+      }
+    }
+
+    const found = S.choferesBDFull.find(c => c.choferIdAt && c.choferIdAt.toUpperCase() === idat);
+    const nomDisplay = document.getElementById(`rec-nom-${rowId}`);
     if (nomDisplay) {
       nomDisplay.textContent = found ? found.nombre : "— ID no encontrado —";
       if (found) Handlers.guardarRecField(rowId, 'nombreChofer', found.nombre);
@@ -1107,19 +1159,41 @@ const Handlers = {
     Handlers.guardarRecField(rowId, 'idChofer', idat);
   },
 
-  async eliminarRecFila(rowIndex) {
-    if (!confirm('¿Borrar esta fila de la memoria?')) return;
-    // Implementación local para eliminar de recorridos
-    Render.toast('✓ Borrado local.', 'ok'); Handlers.renderRecorridos();
+  async quitarChoferDeRecorrido(zonaNombre, rowId) {
+    Handlers.solicitarConfirmacion(
+      '¿Quitar Chofer?',
+      '¿Borrar esta fila de la memoria del recorrido?',
+      async () => {
+        if (!S.recorridos) S.recorridos = await Store.cargarRecorridos();
+        const zona = S.recorridos.find(z => z.nombre === zonaNombre);
+        if (zona) zona.filas = zona.filas.filter(f => f.id != rowId);
+
+        const ovr = Storage.loadRecOverrides(S.hojaRecorridos);
+        if (ovr[rowId]) { delete ovr[rowId]; Storage.setJSON(`col_rec_ovr_${S.hojaRecorridos}`, ovr); }
+
+        Storage.saveRecorridos(S.hojaRecorridos, S.recorridos);
+        Render.recorridos(S.recorridos);
+        Render.toast('🗑️ Fila eliminada', 'ok');
+      }
+    );
   },
 
   async eliminarZona(nombre, ids) {
-    if (!confirm(`¿Borrar TODAS las localidades de ${nombre}?`)) return;
-    Render.toast('✓ Zona eliminada localmente.', 'ok'); Handlers.renderRecorridos();
+    Handlers.solicitarConfirmacion(
+      '¿Eliminar Zona?',
+      `¿Borrar TODAS las localidades de <strong>${nombre}</strong>?`,
+      async () => {
+        if (!S.recorridos) S.recorridos = await Store.cargarRecorridos();
+        S.recorridos = S.recorridos.filter(z => z.nombre !== nombre);
+        Storage.saveRecorridos(S.hojaRecorridos, S.recorridos);
+        Render.recorridos(S.recorridos);
+        Render.toast(`🗑️ Zona ${nombre} eliminada`, 'ok');
+      }
+    );
   },
 
   async cargarDB() {
-    try { await Store.cargarDB(); Render.db(S.dbChoferesFiltrados); } catch (err) { Render.toast(err.message, 'err'); }
+    try { await Store.cargarDB(); Render.database(S.dbChoferesFiltrados); } catch (err) { Render.toast(err.message, 'err'); }
   },
 
   filtrarDB() {
@@ -1128,58 +1202,34 @@ const Handlers = {
     Render.db(S.dbChoferesFiltrados);
   },
 
-  editarDB(rowId) {
-    if (S.editandoDB && S.editandoDB !== rowId) Handlers.cancelarDB(S.editandoDB);
-    S.editandoDB = rowId;
-    const c = S.dbChoferes.find(k => k.id === rowId);
-    const tr = document.getElementById(`db-row-${rowId}`);
-    if (tr) { tr.classList.add('editando'); tr.innerHTML = Render._dbEditRow(c); }
+  abrirModalConductor() {
+    Handlers.cerrarModalNuevoChofer();
+    const modal = document.getElementById('modal-nuevo-chofer');
+    if (modal) modal.style.setProperty('display', 'flex', 'important');
   },
 
-  cancelarDB(rowId) {
-    const c = S.dbChoferes.find(k => k.id === rowId);
-    const tr = document.getElementById(`db-row-${rowId}`);
-    if (tr) { tr.classList.remove('editando'); tr.innerHTML = Render._dbRow(c); S.editandoDB = null; }
-  },
-
-  async guardarDB(rowId) {
-    const c = S.dbChoferes.find(k => k.id === rowId);
+  editarRegistro(rowId) {
+    S._editId = rowId;
+    const c = S.dbChoferes.find(k => String(k.id) === String(rowId));
     if (!c) return;
-    Object.assign(c, {
-      nombre: document.getElementById(`db-in-nom-${rowId}`)?.value.trim() ?? c.nombre,
-      direccion: document.getElementById(`db-in-dir-${rowId}`)?.value.trim() ?? c.direccion,
-      dni: document.getElementById(`db-in-dni-${rowId}`)?.value.trim() ?? c.dni,
-      zona: document.getElementById(`db-in-zon-${rowId}`)?.value.trim() ?? c.zona,
-      tel: document.getElementById(`db-in-tel-${rowId}`)?.value.trim() ?? c.tel,
-      choferIdAt: document.getElementById(`db-in-idat-${rowId}`)?.value.trim() ?? c.choferIdAt,
-      condicion: document.getElementById(`db-in-cond-${rowId}`)?.value ?? c.condicion,
-    });
-    LocalDB.saveChoferes(S.dbChoferes);
-    Handlers.cancelarDB(rowId);
-    Render.toast('✓ Cambios guardados localmente', 'ok');
-  },
 
-  async toggleActivoDB(rowId, isChecked) {
-    const c = S.dbChoferes.find(k => k.id === rowId);
-    if (!c) return;
-    c.activo = isChecked;
-    LocalDB.saveChoferes(S.dbChoferes);
-  },
+    // Actualizar título de modal
+    const title = document.getElementById('modal-chofer-title');
+    if (title) title.textContent = 'Editar Registro';
 
-  async eliminarDB(rowId) {
-    if (!confirm('¿Borrar definitivamente de la memoria?')) return;
-    S.dbChoferes = S.dbChoferes.filter(k => k.id !== rowId);
-    LocalDB.saveChoferes(S.dbChoferes);
-    const f = document.getElementById(`db-row-${rowId}`);
-    if (f) {
-      f.style.transition = 'all 0.4s ease';
-      f.style.opacity = '0';
-      f.style.transform = 'translateX(-20px)';
-      setTimeout(() => { Handlers.filtrarDB(); Render.toast('🗑️ Eliminado permanentemente', 'ok'); }, 400);
-    } else {
-      Handlers.filtrarDB();
-      Render.toast('✓ Eliminado', 'ok');
-    }
+    // Poblar campos
+    const fill = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    fill('nc-idat', c.choferIdAt);
+    fill('nc-nom', c.nombre);
+    fill('nc-cel', c.tel);
+    fill('nc-dni', c.dni);
+    fill('nc-zon', c.zona);
+    fill('nc-dir', c.direccion);
+    fill('nc-cond', c.condicion || 'TITULAR');
+
+    // Mostrar modal
+    const modal = document.getElementById('modal-nuevo-chofer');
+    if (modal) modal.style.setProperty('display', 'flex', 'important');
   },
 
   async confirmarNuevoChofer() {
@@ -1189,40 +1239,77 @@ const Handlers = {
     if (!idat || !nom || !tel) { Render.toast('ID, Nombre y Celular son obligatorios', 'err'); return; }
 
     try {
-      const nuevo = {
-        id: idat, choferIdAt: idat, nombre: nom,
-        tel: tel,
+      const data = {
+        choferIdAt: idat, nombre: nom, tel: tel,
         dni: document.getElementById('nc-dni').value.trim(),
         zona: document.getElementById('nc-zon').value.trim(),
         direccion: document.getElementById('nc-dir').value.trim(),
-        condicion: document.getElementById('nc-cond').value || 'TITULAR',
-        activo: true
+        condicion: document.getElementById('nc-cond').value || 'TITULAR'
       };
 
-      // 1. Guardar localmente para feedback instantáneo
-      S.dbChoferesBDFull.unshift(nuevo);
+      if (S._editId) {
+        // MODO EDICIÓN
+        const idx = S.dbChoferesBDFull.findIndex(x => x.id === S._editId);
+        if (idx !== -1) {
+          Object.assign(S.dbChoferesBDFull[idx], data);
+          S.dbChoferesBDFull[idx].id = idat;
+          S.dbChoferesBDFull[idx].choferIdAt = idat;
+        }
+      } else {
+        // MODO NUEVO
+        const nuevo = { ...data, id: idat, activo: true };
+        S.dbChoferesBDFull.unshift(nuevo);
+      }
+
       const db = LocalDB.getDB();
       db.conductores = S.dbChoferesBDFull;
       LocalDB.saveDB(db);
       Handlers.filtrarDB();
       Handlers.cerrarModalNuevoChofer();
-      Render.toast('Conductor guardado localmente', 'ok');
+      Render.toast(S._editId ? '✓ Cambios guardados' : '✓ Conductor guardado', 'ok');
 
-      // 2. Intentar sync con Sheets (Async)
+      // Sync (Async)
       Render.syncIndicator(true);
-      API.saveChofer(nuevo, S.config).then(res => {
-        Render.toast('Sincronizado con Google Sheets', 'ok');
+      API.saveChofer({ ...data, id: idat }, S.config).then(() => {
+        Render.toast('✓ Sincronizado', 'ok');
       }).catch(e => {
         console.error("Sync error:", e);
-        Render.toast('Guardado local (Sin conexión)', 'info');
+        Render.toast('Guardado local (Sin Sync)', 'info');
       }).finally(() => Render.syncIndicator(false));
 
+      S._editId = null;
     } catch (err) { Render.toast('Error al guardar: ' + err.message, 'err'); }
   },
 
   cerrarModalNuevoChofer() {
     document.getElementById('modal-nuevo-chofer').style.display = 'none';
     ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dni', 'nc-zon', 'nc-dir', 'nc-cond'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+    // Resetear título a default
+    const title = document.getElementById('modal-chofer-title');
+    if (title) title.textContent = '+ Nuevo Conductor';
+    S._editId = null;
+  },
+
+  borrarRegistro(rowId) {
+    const c = S.dbChoferes.find(k => String(k.id) === String(rowId));
+    if (!c) return;
+
+    Handlers.solicitarConfirmacion(
+      '¿Eliminar?',
+      `¿Borrar definitivamente a <strong>${c.nombre}</strong>?`,
+      () => {
+        S.dbChoferesBDFull = S.dbChoferesBDFull.filter(x => String(x.id) !== String(rowId));
+        S.dbChoferes = S.dbChoferes.filter(x => String(x.id) !== String(rowId));
+
+        const db = LocalDB.getDB();
+        db.conductores = S.dbChoferesBDFull;
+        LocalDB.saveDB(db);
+
+        Handlers.filtrarDB();
+        Render.toast('🗑️ Registro eliminado', 'ok');
+      }
+    );
   },
 
   async cargarHistorial() { Render.historial(Storage.loadHistorial()); },
@@ -1247,22 +1334,51 @@ const Handlers = {
   limpiarHistorial() {
     Handlers.abrirAdminModal(async (pass) => {
       if (!(await checkAdminPass(pass))) return Render.toast('⚠ Clave incorrecta', 'err');
-      if (!confirm('¿ESTÁ SEGURO? Esta acción borrará permanentemente todo el historial local.')) return;
-      Storage.clearHistorial(); Handlers.cargarHistorial(); Render.toast('✓ Historial eliminado', 'ok');
+      Handlers.solicitarConfirmacion(
+        'Limpiar Historial',
+        '¿ESTÁ SEGURO? Esta acción borrará permanentemente todo el historial local almacenado.',
+        () => {
+          Storage.clearHistorial();
+          Handlers.cargarHistorial();
+          Render.toast('✓ Historial eliminado', 'ok');
+        }
+      );
     });
   },
 
-  _adminCallback: null,
   abrirAdminModal(cb) {
     Handlers._adminCallback = cb;
-    const modal = document.getElementById('modal-admin-pass'); const inp = document.getElementById('inp-admin-pass');
-    if (modal && inp) { inp.value = ''; modal.style.display = 'flex'; setTimeout(() => inp.focus(), 100); }
+    const modal = document.getElementById('modal-admin-pass');
+    if (modal) modal.style.setProperty('display', 'flex', 'important');
+    const inp = document.getElementById('inp-admin-pass');
+    if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 100); }
   },
-  cerrarAdminModal() { document.getElementById('modal-admin-pass').style.display = 'none'; Handlers._adminCallback = null; },
+
+  cerrarAdminModal() {
+    const modal = document.getElementById('modal-admin-pass');
+    if (modal) modal.style.setProperty('display', 'none', 'important');
+    Handlers._adminCallback = null;
+  },
   confirmarAdminModal() {
     const inp = document.getElementById('inp-admin-pass'); if (!inp) return;
     const pass = inp.value; const cb = Handlers._adminCallback;
     Handlers.cerrarAdminModal(); if (cb) cb(pass);
+  },
+
+  abrirModalLocalidad() {
+    const inp = document.getElementById('nl-inp');
+    if (inp) inp.value = '';
+    const modal = document.getElementById('modal-nueva-localidad');
+    if (modal) modal.style.setProperty('display', 'flex', 'important');
+  },
+
+  abrirModalCliente() {
+    ['ncli-nom', 'ncli-hor', 'ncli-dir'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const modal = document.getElementById('modal-nuevo-cliente');
+    if (modal) modal.style.setProperty('display', 'flex', 'important');
   },
 };
 
@@ -1416,7 +1532,16 @@ window.abrirSeguridad = () => {
   }
 };
 window.guardarConfig = () => { Storage.saveConfig({ sheetId: document.getElementById('inp-sheet-id').value.trim(), apiKey: document.getElementById('inp-api-key').value.trim(), appsUrl: document.getElementById('inp-apps-url').value.trim(), sheetIdRec: document.getElementById('inp-sid-rec').value.trim() }); Render.toast('✓ Configuración Guardada', 'ok'); location.reload(); };
-window.resetConfig = () => { if (confirm('¿Borrar configuración?')) { Storage.resetAll(); location.reload(); } };
+window.resetConfig = () => {
+  Handlers.solicitarConfirmacion(
+    'Resetear App',
+    '¿Borrar TODA la configuración y datos locales? Esta acción recargará la página.',
+    () => {
+      Storage.resetAll();
+      location.reload();
+    }
+  );
+};
 window.toggleConfigInputs = () => { const el = document.getElementById('admin-config-technical'); el.style.display = el.style.display === 'none' ? 'block' : 'none'; };
 window.toggleTheme = () => { const root = document.documentElement; const newTheme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', newTheme); Storage.saveTheme(newTheme); const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = newTheme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'; };
 window.toggleMenu = (f) => { const s = document.getElementById('sidebar'); const o = document.getElementById('sidebar-overlay'); if (!s || !o) return; const shouldOpen = typeof f === 'boolean' ? f : !s.classList.contains('open'); s.classList.toggle('open', shouldOpen); o.classList.toggle('show', shouldOpen); };
@@ -1462,7 +1587,7 @@ async function iniciar() {
     });
   };
   S.config = cfg;
-  if (!cfg.sheetId || !cfg.apiKey) { irA('admin'); return; }
+
   S.hojaDespacho = Storage.loadHojaDespacho();
   S.hojaClientes = Storage.loadHojaCli();
   S.hojaRecorridos = Storage.loadHojaRec();
@@ -1478,6 +1603,10 @@ async function iniciar() {
   S.dbChoferesBDFull = db.conductores || [];
   S.choferesBDFull = S.dbChoferesBDFull;
   S.telMap = Object.fromEntries(S.dbChoferesBDFull.map(c => [c.nombre, c.tel]));
+
+  // LANDING PAGE: DIRECTO A RECORRIDOS
+  irA('recorridos');
+  S.seccionActual = 'recorridos';
 }
 
 // ─── EJECUCIÓN INICIAL ──────────────────────────────────────────

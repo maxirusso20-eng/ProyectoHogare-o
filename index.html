@@ -95,7 +95,7 @@
     <div id="modal-nuevo-chofer" class="modal-overlay" style="display:none">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>+ Nuevo Conductor</h3>
+                <h3 id="modal-chofer-title">+ Nuevo Conductor</h3>
                 <button onclick="cerrarModalNuevoChofer()" class="btn-close">✕</button>
             </div>
 
@@ -241,7 +241,7 @@
         <div class="search-row">
             <input type="text" id="search-clientes" placeholder="Buscar cliente o chofer..."
                 oninput="Handlers.filtrarClientes()">
-            <button class="btn-sm btn-accent" onclick="agregarChofer()">+ Nuevo Cliente</button>
+            <button class="btn-sm btn-accent" onclick="Handlers.abrirModalCliente()">+ Nuevo Cliente</button>
         </div>
         <div class="clientes-table-wrap">
             <table class="clientes-table">
@@ -269,7 +269,7 @@
         <div class="recorridos-header">
             <h2>🗺️ Hoja de Recorridos</h2>
             <div class="rec-actions">
-                <button class="btn-pill btn-accent" data-action="nueva-localidad">+ Nueva Localidad</button>
+                <button class="btn-pill btn-accent" onclick="Handlers.abrirModalLocalidad()">+ Nueva Localidad</button>
             </div>
         </div>
         <div id="recorridos-container"></div>
@@ -279,11 +279,31 @@
     <div class="page" id="page-colectas">
         <div class="recorridos-header">
             <h2>🕒 Horario Colectas</h2>
-            <div class="rec-actions">
-                <button class="btn-sm" onclick="Handlers.mostrarConfirmarHistorial()"
-                    title="Pasar colectas terminadas al historial">📦 Guardar Historial</button>
-                <button class="btn-sm" onclick="limpiarColectas()" title="Borrar horarios de hoy">🧹 Limpiar
-                    hoy</button>
+            <div class="action-bar-recorridos">
+                <button class="btn-premium" onclick="Handlers.mostrarConfirmarHistorial()"
+                    title="Pasar colectas terminadas al historial">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-save">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    <span>Guardar Historial</span>
+                </button>
+                <button class="btn-premium btn-danger-hover" onclick="Handlers.solicitarLimpiarHoy()"
+                    title="Borrar horarios de hoy">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="icon-broom">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        <line x1="10" x2="10" y1="11" y2="17" />
+                        <line x1="14" x2="14" y1="11" y2="17" />
+                    </svg>
+                    <span>Limpiar Hoy</span>
+                </button>
             </div>
         </div>
         <div class="search-row">
@@ -348,8 +368,8 @@
         <div class="recorridos-header">
             <h2>📂 Base de Datos de Choferes</h2>
             <div class="rec-actions">
-                <button id="btn-new-db" class="btn-pill btn-accent" data-action="nuevo-conductor" style="display:none">+
-                    Nuevo Conductor</button>
+                <button id="btn-new-db" class="btn-pill btn-accent" onclick="Handlers.abrirModalConductor()">+ Nuevo
+                    Conductor</button>
                 <button class="btn-outline" onclick="irA('despacho')">Cerrar</button>
             </div>
         </div>
@@ -469,7 +489,7 @@
     <div id="toast"></div>
 
     <!-- ── MODAL ACCESO ADMINISTRATIVO ──────────────── -->
-    <div id="modal-admin-pass" class="modal-overlay" style="display:none">
+    <div id="modal-admin-pass" class="modal-overlay" style="display:none !important;">
         <div class="modal-card modal-admin">
             <div class="modal-header">
                 <h3>Acceso Administrativo</h3>
@@ -482,6 +502,21 @@
                         onkeydown="if(event.key==='Enter') Handlers.confirmarAdminModal()">
                 </div>
                 <button onclick="Handlers.confirmarAdminModal()" class="btn-admin-submit">Entrar →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: CONFIRMACIÓN PREMIUM BÓVEDA ────── -->
+    <div id="modal-confirm" class="modal-overlay" style="display:none !important;">
+        <div class="modal-card confirm-card">
+            <div class="confirm-content">
+                <div class="confirm-icon">⚠️</div>
+                <h2 id="confirm-title">¿Estás seguro?</h2>
+                <p id="confirm-msg">Esta acción no se puede deshacer.</p>
+                <div class="confirm-btns">
+                    <button onclick="Handlers.onConfirmAction()" class="btn-confirm-yes">Sí, Confirmar</button>
+                    <button onclick="Handlers.cerrarConfirm()" class="btn-confirm-no">No, Cancelar</button>
+                </div>
             </div>
         </div>
     </div>
