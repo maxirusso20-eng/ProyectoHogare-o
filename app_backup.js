@@ -5,7 +5,7 @@
 // ─── STATE ───────────────────────────────────────────────────────
 const S = {
   config: null,
-  pagina: 'recorridos',
+  pagina: 'despacho',
   hojaDespacho: 'DESPACHO_WHATSAPP',
   hojaClientes: 'DESPACHO_WHATSAPP',
   hojaRecorridos: 'HOJA DE RECORRIDO',
@@ -31,34 +31,7 @@ const S = {
 
   dbAutenticado: false,
   despachoDirty: false,
-  initialLoadFinished: false,
 };
-
-// Bloqueo inmediato de scroll al cargar el script
-document.body.style.overflow = 'hidden';
-
-// ─── SPLASH CONTROL ──────────────────────────────────────────────
-async function hideSplashScreen() {
-  const splash = document.getElementById('splash-screen');
-  if (!splash) return;
-
-  document.body.style.overflow = 'hidden';
-
-  const timeToShow = 2000; // 2 segundos exactos
-
-  setTimeout(() => {
-    // Forzar sección Recorridos al iniciar fade-out
-    if (typeof irA === 'function') irA('recorridos');
-
-    splash.classList.add('fade-out');
-
-    // Restaurar scroll y eliminar del DOM tras la transición (0.8s)
-    setTimeout(() => {
-      splash.remove();
-      document.body.style.overflow = '';
-    }, 800);
-  }, timeToShow);
-}
 
 // ─── HELPERS ─────────────────────────────────────────────────────
 function escHTML(s) {
@@ -191,87 +164,6 @@ const Storage = {
 };
 
 // ─── API ─────────────────────────────────────────────────────────
-const LocalDB = {
-  init() {
-    if (!localStorage.getItem('dbLogistica')) {
-      localStorage.setItem('dbLogistica', JSON.stringify({ conductores: [], clientes_SEMANA: [], clientes_SABADO: [] }));
-    }
-    // Sincronizar S.dbChoferes con localStorage si existe la clave específica solicitada
-    const localDocs = localStorage.getItem('dbChoferes');
-    if (localDocs) S.dbChoferes = JSON.parse(localDocs);
-  },
-  getDB() { return JSON.parse(localStorage.getItem('dbLogistica')); },
-  saveDB(data) { localStorage.setItem('dbLogistica', JSON.stringify(data)); },
-
-  // Sincronización rápida para Choferes
-  saveChoferes(lista) {
-    localStorage.setItem('dbChoferes', JSON.stringify(lista));
-    // Opcional: También guardamos en el objeto unificado
-    const db = this.getDB();
-    db.conductores = lista;
-    this.saveDB(db);
-  },
-
-  exportar() {
-    const d = localStorage.getItem('dbLogistica');
-    if (!d) return Render.toast('No hay datos para exportar', 'err');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([d], { type: 'application/json' }));
-    a.download = `Backup_Logistica_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    Render.toast('💾 Backup descargado', 'ok');
-  }
-};
-LocalDB.init();
-window.dbLogistica = LocalDB;
-
-// ─── MIGRATOR (Descarga Única) ───────────────────────────────────
-const Migrator = {
-  async run() {
-    // Referencia histórica de seguridad por si config.js está comentado
-    const backupID = '1QFuIRe3PDc6WiVXIHEWT1Trc1ziH5lBgHDkvG8mJu6A';
-    const backupKey = 'AIzaSyCGHbIjzNTbHIAbzsmFgStgAMg0j6XixWc';
-
-    const apiKey = S.config?.apiKey || backupKey;
-    const sheetId = S.config?.sheetId || backupID;
-    const sheetIdRec = S.config?.sheetIdRec || '140yHhZ6yOsqa-0L-Fu_G8ufDjNR0tSuscRgw2dJ5OzY';
-
-    if (!apiKey) return Render.toast('No hay configuración de API para migrar.', 'err');
-    Render.cargando(true);
-    try {
-      Render.toast('📥 Iniciando migración final...', 'ok');
-
-      const [rowsCho, rowsSem, rowsSab, rowsCli, rowsRec, rowsRecSab] = await Promise.all([
-        API.fetchSheet(sheetIdRec, 'BASE DE DATOS CHOFERES', apiKey),
-        API.fetchSheet(sheetIdRec, 'DESPACHO_WHATSAPP!A1:Z', apiKey).catch(() => []),
-        API.fetchSheet(sheetIdRec, 'DESPACHO_WHATSAPP_SABADOS!A1:Z', apiKey).catch(() => []),
-        API.fetchSheet(sheetIdRec, 'CLIENTES!A1:G', apiKey).catch(() => []),
-        API.fetchSheet(sheetId, 'HOJA DE RECORRIDO', apiKey).catch(() => []),
-        API.fetchSheet(sheetId, 'HOJA DE RECORRIDOS SABADOS', apiKey).catch(() => [])
-      ]);
-
-      const db = {
-        conductores: API.parseDBChoferes(rowsCho),
-        clientes_SEMANA: API.parseClientes(rowsSem, {}),
-        clientes_SABADO: API.parseClientes(rowsSab, {}),
-        base_clientes: rowsCli,
-        recorridos_SEMANA: rowsRec,
-        recorridos_SABADO: rowsRecSab
-      };
-
-      LocalDB.saveDB(db);
-      LocalDB.saveChoferes(db.conductores);
-
-      Storage.set('migration_done', 'true');
-      Render.toast('✅ Migración completa. Reiniciando...', 'ok');
-      setTimeout(() => location.reload(), 2000);
-    } catch (err) {
-      Render.toast('Error en migración: ' + err.message, 'err');
-    } finally { Render.cargando(false); }
-  }
-};
-window.Migrator = Migrator;
-
 const API = {
   ping(url) {
     return new Promise(resolve => {
@@ -413,8 +305,6 @@ const API = {
 
 // ─── STORE ───────────────────────────────────────────────────────
 const Store = {
-  isLocal() { return Storage.get('migration_done') === 'true'; },
-
   async cargarDespacho() {
     await this.cargarClientes();
     S.choferes = API.reagrupar(S.clientes, S.telMap, S.enviados);
@@ -422,74 +312,66 @@ const Store = {
   },
 
   async cargarChoferesBDSiNecesario() {
-    if (S.choferesBDFull.length > 0) return;
-    const db = LocalDB.getDB();
-    if (db && db.conductores) {
-      const full = db.conductores.map(c => ({ choferIdAt: c.choferIdAt, nombre: c.nombre }));
-      S.choferesBDFull = full;
-      S.choferesBD = full.map(c => c.nombre);
-      S.telMap = Object.fromEntries(db.conductores.map(c => [c.nombre, c.tel]));
-    }
+    if (S.choferesBDFull.length > 0 || !S.config) return;
+    try {
+      const id = S.config.sheetIdRec || S.config.sheetId;
+      const rows = await API.fetchSheet(id, 'BASE DE DATOS CHOFERES', S.config.apiKey);
+      const bd = API.parseChoferesBD(rows);
+      S.choferesBDFull = bd.full;
+      S.choferesBD = bd.nombres;
+      if (!Object.keys(S.telMap).length) S.telMap = bd.telMap;
+    } catch { }
   },
 
   async cargarClientes() {
-    if (this.isLocal()) {
-      const db = LocalDB.getDB();
-      const hoja = S.hojaClientes.includes('SABADO') ? 'clientes_SABADO' : 'clientes_SEMANA';
-      S.clientes = db[hoja] || [];
-      await this.cargarChoferesBDSiNecesario();
-    } else {
-      const id = S.config.sheetIdRec || S.config.sheetId;
-      const [rowsCli, rowsBD] = await Promise.all([
-        API.fetchSheet(id, `${S.hojaClientes}!A1:Z`, S.config.apiKey),
-        API.fetchSheet(id, 'BASE DE DATOS CHOFERES', S.config.apiKey).catch(() => []),
-      ]);
-      const bd = API.parseChoferesBD(rowsBD);
-      S.telMap = bd.telMap;
-      S.clientes = API.parseClientes(rowsCli, S.telMap);
-    }
+    const id = S.config.sheetIdRec || S.config.sheetId;
+    const [rowsCli, rowsBD] = await Promise.all([
+      API.fetchSheet(id, `${S.hojaClientes}!A1:Z`, S.config.apiKey),
+      API.fetchSheet(id, 'BASE DE DATOS CHOFERES', S.config.apiKey).catch(() => []),
+    ]);
 
+    const bd = API.parseChoferesBD(rowsBD);
+    S.choferesBD = bd.nombres;
+    if (!Object.keys(S.telMap).length) S.telMap = bd.telMap;
+
+    S.clientes = API.parseClientes(rowsCli, S.telMap);
     S.clientes = [...S.clientes, ...Storage.loadLocalNuevosClientes(S.hojaClientes)];
+
     const overrides = Storage.loadOverridesClientes(S.hojaClientes);
     S.clientes.forEach(c => { if (overrides[c.rowIndex]) Object.assign(c, overrides[c.rowIndex]); });
+
     S.clientesFiltrados = [...S.clientes];
     return S.clientes;
   },
 
   async cargarColectas() {
-    if (this.isLocal()) {
-      const db = LocalDB.getDB();
-      S.colectas = API.parseColectas(db.base_clientes || [], S.telMap);
-    } else {
-      const id = S.config.sheetIdRec || S.config.sheetId;
-      const rows = await API.fetchSheet(id, 'CLIENTES', S.config.apiKey);
-      S.colectas = API.parseColectas(rows, S.telMap);
-    }
+    const id = S.config.sheetIdRec || S.config.sheetId;
+    const [rows] = await Promise.all([
+      API.fetchSheet(id, 'CLIENTES', S.config.apiKey),
+      S.clientes.length === 0 ? Store.cargarClientes().catch(() => []) : Promise.resolve()
+    ]);
+    if (!Object.keys(S.telMap).length) await Store.cargarChoferesBDSiNecesario();
+
+    S.colectas = API.parseColectas(rows, S.telMap);
     const overrides = Storage.loadOverridesColectas();
     S.colectas.forEach(c => { if (overrides[c.rowIndex]) Object.assign(c, overrides[c.rowIndex]); });
+
     S.colectasFiltradas = [...S.colectas];
     return S.colectas;
   },
 
   async cargarRecorridos() {
-    let rows = [];
-    if (this.isLocal()) {
-      const db = LocalDB.getDB();
-      rows = S.hojaRecorridos.includes('SABADO') ? db.recorridos_SABADO : db.recorridos_SEMANA;
-    } else {
-      rows = await API.fetchSheet(S.config.sheetId, S.hojaRecorridos, S.config.apiKey);
-    }
+    await Store.cargarChoferesBDSiNecesario();
+    const rows = await API.fetchSheet(S.config.sheetId, S.hojaRecorridos, S.config.apiKey);
     const overrides = Storage.loadRecOverrides(S.hojaRecorridos);
-    return API.parseRecorridos(rows || [], overrides);
+    return API.parseRecorridos(rows, overrides);
   },
 
   async cargarDB() {
-    const local = localStorage.getItem('dbChoferes');
-    if (local) {
-      S.dbChoferes = JSON.parse(local);
-    } else if (this.isLocal()) {
-      S.dbChoferes = LocalDB.getDB().conductores || [];
-    }
+    const id = S.config.sheetIdRec || S.config.sheetId;
+    const rows = await API.fetchSheet(id, 'BASE DE DATOS CHOFERES', S.config.apiKey);
+    S.dbChoferes = API.parseDBChoferes(rows);
+    S.dbChoferes = [...S.dbChoferes, ...Storage.loadLocalNuevosChoferes()];
     S.dbChoferesFiltrados = [...S.dbChoferes];
     return S.dbChoferes;
   },
@@ -504,10 +386,9 @@ const Render = {
     if (!lista.length) { empty.style.display = 'block'; return; }
     empty.style.display = 'none';
 
-    lista.forEach((c, index) => {
+    lista.forEach(c => {
       const card = document.createElement('div');
       card.className = `chofer-card${c.enviado ? ' enviado' : ''}`;
-      card.style.animationDelay = `${(index % 15) * 0.05}s`;
       card.dataset.nombre = c.nombre;
       const waHref = buildWA(c);
       const totalClientes = c.clientes.length;
@@ -515,9 +396,10 @@ const Render = {
       card.innerHTML = `
         <div class="card-header">
           <div class="card-header-info">
-            <div class="chofer-name" style="font-family:'Plus Jakarta Sans', sans-serif; font-weight:700; font-size:1.1rem; letter-spacing:-0.01em;">${x(c.nombre)}</div>
+            <div class="chofer-name">${x(c.nombre)}</div>
             <div class="chofer-meta">
-              <span class="meta-chip">📦 ${totalClientes} Clientes</span>
+              <span class="meta-chip">👥 ${totalClientes} clientes</span>
+              ${c.telefono ? `<span class="meta-chip">📱 ${fmtTel(c.telefono)}</span>` : '<span class="meta-chip meta-warn">⚠ sin teléfono</span>'}
             </div>
           </div>
           <span class="badge-enviado">ENVIADO</span>
@@ -544,17 +426,11 @@ const Render = {
   },
 
   stats() {
-    const total = document.getElementById('stat-total');
-    const enviados = document.getElementById('stat-enviados');
-    const clientes = document.getElementById('stat-clientes');
-    const pendientes = document.getElementById('stat-pendientes');
-    if (!total || !enviados || !clientes || !pendientes) return;
-
     const env = S.choferes.filter(c => c.enviado).length;
-    total.textContent = S.choferes.length;
-    enviados.textContent = env;
-    clientes.textContent = S.choferes.reduce((s, c) => s + c.clientes.length, 0);
-    pendientes.textContent = S.choferes.length - env;
+    document.getElementById('stat-total').textContent = S.choferes.length;
+    document.getElementById('stat-enviados').textContent = env;
+    document.getElementById('stat-clientes').textContent = S.choferes.reduce((s, c) => s + c.clientes.length, 0);
+    document.getElementById('stat-pendientes').textContent = S.choferes.length - env;
   },
 
   clientes(lista) {
@@ -610,16 +486,16 @@ const Render = {
     const tbody = document.getElementById('tbody-db');
     tbody.innerHTML = '';
     if (!lista.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay registros.</td></tr>'; return; }
-    const condOpts = ['TITULAR', 'SEMITITULAR', 'SUPLENTE'];
+    const condOpts = ['Titular', 'Semititular', 'Suplente'];
     lista.forEach(c => {
       const tr = document.createElement('tr'); tr.id = `db-row-${c.id}`;
       const condBadge = c.condicion ? `<span class="cond-badge cond-${(c.condicion || '').toLowerCase().replace(' ', '')}">` + x(c.condicion) + '</span>' : '—';
-      tr.innerHTML = `<td class="td-cliente">${x(c.nombre)}</td><td class="td-horario">${c.tel ? `<a class="tel-link" href="tel:${x(c.tel)}">${fmtTel(c.tel)}</a>` : '—'}</td><td>${x(c.dni)}</td><td>${x(c.zona)}</td><td class="td-dir">${x(c.direccion)}</td><td>${condBadge}</td><td class="td-acciones"><button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button><button class="btn-del" data-action="eliminar-db" data-id="${c.id}">🗑</button></td>`;
+      tr.innerHTML = `<td class="td-idat">${x(c.choferIdAt)}</td><td class="td-cliente">${x(c.nombre)}</td><td class="td-horario">${c.tel ? `<a class="tel-link" href="tel:${x(c.tel)}">${fmtTel(c.tel)}</a>` : '—'}</td><td>${x(c.dni)}</td><td>${x(c.zona)}</td><td class="td-dir">${x(c.direccion)}</td><td>${condBadge}</td><td class="td-acciones"><button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button><button class="btn-del" data-action="eliminar-db" data-id="${c.id}">🗑</button></td>`;
       tbody.appendChild(tr);
     });
   },
   _dbEditRow(c) {
-    const condOpts = ['TITULAR', 'SEMITITULAR', 'SUPLENTE'].map(o => `<option value="${o}"${o === (c.condicion || '').toUpperCase() ? ' selected' : ''}>${o}</option>`).join('');
+    const condOpts = ['Titular', 'Semititular', 'Suplente'].map(o => `<option value="${o}"${o === c.condicion ? ' selected' : ''}>${o}</option>`).join('');
     return `<td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}"></td><td><input class="inp-inline" id="db-in-nom-${c.id}" value="${x(c.nombre)}"></td><td><input class="inp-inline" id="db-in-tel-${c.id}" value="${x(c.tel)}"></td><td><input class="inp-inline" id="db-in-dni-${c.id}" value="${x(c.dni)}"></td><td><input class="inp-inline" id="db-in-zon-${c.id}" value="${x(c.zona)}"></td><td><input class="inp-inline" id="db-in-dir-${c.id}" value="${x(c.direccion)}"></td><td><select class="select-inline" id="db-in-cond-${c.id}"><option value="">— sin condición —</option>${condOpts}</select></td><td class="td-acciones"><button class="btn-save" data-action="guardar-db" data-id="${c.id}">✓</button><button class="btn-cancel" data-action="cancelar-db" data-id="${c.id}">✕</button></td>`;
   },
 
@@ -636,26 +512,16 @@ const Render = {
   },
 
   cargando(show) {
-    const el = document.getElementById('loading');
-    if (el) el.style.display = show ? 'block' : 'none';
-    if (show) {
-      const pD = document.getElementById('page-despacho'); if (pD) pD.classList.remove('active');
-      const pC = document.getElementById('page-clientes'); if (pC) pC.classList.remove('active');
-    }
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+    if (show) { document.getElementById('page-despacho').classList.remove('active'); document.getElementById('page-clientes').classList.remove('active'); }
   },
   error(msg) {
     const el = document.getElementById('error-msg');
-    if (el) { el.innerHTML = `<strong>❌ Error al conectar</strong><br><br>${msg}`; el.style.display = 'block'; }
-    const ld = document.getElementById('loading'); if (ld) ld.style.display = 'none';
+    el.innerHTML = `<strong>❌ Error al conectar</strong><br><br>${msg}`; el.style.display = 'block'; document.getElementById('loading').style.display = 'none';
   },
-  setStatus(s) {
-    const el = document.getElementById('status-dot');
-    if (el) el.className = `status-dot${s ? ' ' + s : ''}`;
-  },
+  setStatus(s) { document.getElementById('status-dot').className = `status-dot${s ? ' ' + s : ''}`; },
   toast(msg, tipo = 'ok') {
-    const t = document.getElementById('toast');
-    if (!t) return;
-    t.textContent = msg; t.className = `show ${tipo}`;
+    const t = document.getElementById('toast'); t.textContent = msg; t.className = `show ${tipo}`;
     clearTimeout(t._t); t._t = setTimeout(() => { t.className = ''; }, 3200);
   },
 };
@@ -666,10 +532,9 @@ const Handlers = {
     Render.cargando(true);
     try {
       await Store.cargarDespacho();
-      Render.despacho(S.choferes); Render.stats(); Render.setStatus('ok');
+      Render.despacho(S.choferes); Render.stats(); Render.setStatus('ok'); Render.cargando(false);
       document.getElementById('page-despacho').classList.add('active');
     } catch (err) { Render.setStatus('error'); Render.error(err.message); }
-    finally { Render.cargando(false); }
   },
 
   toggleEnviado(nombre, forzar = false) {
@@ -680,7 +545,7 @@ const Handlers = {
     nuevo ? S.enviados.add(nombre) : S.enviados.delete(nombre);
     Storage.saveEnviados(S.hojaDespacho, S.enviados);
     Render.despacho(S.choferes); Render.stats();
-    Render.toast(nuevo ? '✓ Enviado' : '↺ Pendiente', 'ok');
+    if (S.config.appsUrl) API.ping(`${S.config.appsUrl}?action=setCheck&sheet=${enc(S.hojaDespacho)}&row=${c.rowIndex}&value=${nuevo}&docid=${S.config.sheetIdRec}`);
   },
 
   marcarEnviado(nombre) { setTimeout(() => Handlers.toggleEnviado(nombre, true), 400); },
@@ -694,7 +559,9 @@ const Handlers = {
     });
     Storage.saveEnviados(S.hojaDespacho, S.enviados);
     Render.despacho(S.choferes); Render.stats();
-    Render.toast(nuevoEstado ? '✓ Todos enviados' : '↺ Todos pendientes', 'ok');
+    if (S.config.appsUrl) {
+      S.choferes.forEach(c => API.ping(`${S.config.appsUrl}?action=setCheck&sheet=${enc(S.hojaDespacho)}&row=${c.rowIndex}&value=${nuevoEstado}&docid=${S.config.sheetIdRec}`));
+    }
   },
 
   filtrarChoferes() {
@@ -704,13 +571,7 @@ const Handlers = {
 
   async cargarClientes() {
     Render.cargando(true);
-    try {
-      await Store.cargarClientes();
-      Render.clientes(S.clientesFiltrados);
-      Render.setStatus('ok');
-      document.getElementById('page-clientes').classList.add('active');
-    } catch (err) { Render.toast(err.message, 'err'); }
-    finally { Render.cargando(false); }
+    try { await Store.cargarClientes(); Render.clientes(S.clientesFiltrados); Render.setStatus('ok'); Render.cargando(false); document.getElementById('page-clientes').classList.add('active'); } catch (err) { Render.toast(err.message, 'err'); }
   },
 
   editarCliente(rowIndex) {
@@ -737,7 +598,6 @@ const Handlers = {
     const nc = document.getElementById(`ec-${rowIndex}`)?.value.trim() || '';
     const nh = document.getElementById(`eh-${rowIndex}`)?.value.trim() || '';
     const nd = document.getElementById(`ed-${rowIndex}`)?.value.trim() || '';
-
     c.chofer = nc; c.horario = nh; c.direccion = nd;
     Storage.saveOverrideCliente(S.hojaClientes, rowIndex, { chofer: nc, horario: nh, direccion: nd });
 
@@ -747,17 +607,22 @@ const Handlers = {
     } else S.despachoDirty = true;
 
     tr.classList.remove('editando'); tr.innerHTML = Render._clienteRow(c); S.editando = null;
-    Render.toast('✓ Cambio guardado localmente', 'ok');
+
+    if (S.config.appsUrl) {
+      API.ping(`${S.config.appsUrl}?action=updateCliente&sheet=${enc(S.hojaClientes)}&row=${rowIndex}&nombre=${enc(c.nombre)}&chofer=${enc(nc)}&horario=${enc(nh)}&dir=${enc(nd)}&docid=${S.config.sheetIdRec}`);
+      Render.toast('✓ Sincronizado', 'ok');
+    } else Render.toast('✓ Cambio aplicado local', 'ok');
   },
 
   async eliminarCliente(rowIndex) {
     const c = S.clientes.find(k => k.rowIndex === rowIndex);
     if (!c || !confirm(`¿ELIMINAR a ${c.nombre}?`)) return;
+    Render.toast('Eliminando...', 'info');
     S.clientes = S.clientes.filter(k => k.rowIndex !== rowIndex);
     S.clientesFiltrados = S.clientesFiltrados.filter(k => k.rowIndex !== rowIndex);
     S.despachoDirty = true;
     Render.clientes(S.clientesFiltrados);
-    Render.toast('🗑️ Cliente eliminado', 'ok');
+    if (S.config.appsUrl) API.ping(`${S.config.appsUrl}?action=deleteRow&sheet=${enc(S.hojaClientes)}&row=${rowIndex}&docid=${S.config.sheetIdRec}`);
   },
 
   actualizarTelInline(rowIndex, choferNombre) {
@@ -783,7 +648,9 @@ const Handlers = {
   cerrarModalNuevoCliente() {
     const m = document.getElementById('modal-nuevo-cliente');
     if (m) m.style.display = 'none';
-    ['ncli-nom', 'ncli-hor', 'ncli-dir'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    document.getElementById('ncli-nom').value = '';
+    document.getElementById('ncli-hor').value = '';
+    document.getElementById('ncli-dir').value = '';
   },
 
   async confirmarNuevoCliente() {
@@ -798,7 +665,12 @@ const Handlers = {
     S.clientes.push(nuevo);
     Handlers.filtrarClientes();
 
-    Render.toast('✓ Cliente Guardado Localmente', 'ok');
+    // Lo enviamos a Apps Script
+    if (S.config.appsUrl) {
+      API.ping(`${S.config.appsUrl}?action=addCliente&sheet=${enc(S.hojaClientes)}&nombre=${enc(nombre)}&horario=${enc(horario)}&direccion=${enc(direccion)}&docid=${S.config.sheetIdRec}`);
+    }
+
+    Render.toast('✓ Cliente Guardado', 'ok');
     this.cerrarModalNuevoCliente();
   },
 
@@ -841,7 +713,7 @@ const Handlers = {
     c.horario = document.getElementById(`ec-horario-${rowIndex}`)?.value.trim() || '';
     Storage.saveOverrideColecta(rowIndex, { horario: c.horario });
     tr.classList.remove('editando'); tr.innerHTML = Render._colectaRow(c); S.editandoCol = null;
-    Render.toast('✓ Horario guardado localmente', 'ok');
+    Render.toast('✓ Horario guardado (Local)', 'ok');
   },
 
   filtrarColectas() {
@@ -863,7 +735,8 @@ const Handlers = {
 
   guardarRecField(rowIndex, field, value) {
     Storage.saveRecOverride(S.hojaRecorridos, rowIndex, field, value);
-    Render.toast('✓ Guardado local', 'ok');
+    if (!S.config.appsUrl) return;
+    API.ping(`${S.config.appsUrl}?action=updateRecorridoFila&sheet=${enc(S.hojaRecorridos)}&row=${rowIndex}&field=${field}&value=${enc(value)}&docid=${S.config.sheetId}`);
   },
 
   onIdSelect(inp, rowId) {
@@ -884,20 +757,24 @@ const Handlers = {
   },
 
   async eliminarRecFila(rowIndex) {
-    if (!confirm('¿Borrar esta fila de la memoria?')) return;
-    // Implementación local para eliminar de recorridos
-    Render.toast('✓ Borrado local.', 'ok'); Handlers.renderRecorridos();
+    if (!confirm('¿Borrar esta fila?')) return;
+    if (S.config.appsUrl) API.ping(`${S.config.appsUrl}?action=deleteRow&sheet=${enc(S.hojaRecorridos)}&row=${rowIndex}&docid=${S.config.sheetId}`);
+    Render.toast('✓ Borrado.', 'ok'); Handlers.renderRecorridos();
   },
 
   async eliminarZona(nombre, ids) {
     if (!confirm(`¿Borrar TODAS las localidades de ${nombre}?`)) return;
-    Render.toast('✓ Zona eliminada localmente.', 'ok'); Handlers.renderRecorridos();
+    const sortedIds = [...ids].sort((a, b) => b - a);
+    for (const rid of sortedIds) {
+      if (S.config.appsUrl) await API.ping(`${S.config.appsUrl}?action=deleteRow&sheet=${enc(S.hojaRecorridos)}&row=${rid}&docid=${S.config.sheetId}`);
+    }
+    Render.toast('✓ Zona eliminada.', 'ok'); Handlers.renderRecorridos();
   },
 
   async agregarLocalidad() {
-    const loc = prompt('Nombre de la nueva localidad:');
-    if (!loc) return;
-    Render.toast('✓ Localidad agregada localmente.', 'ok'); Handlers.renderRecorridos();
+    const loc = prompt('Nombre de la nueva localidad:'); if (!loc || !S.config.appsUrl) return;
+    await API.ping(`${S.config.appsUrl}?action=addRecorrido&sheet=${enc(S.hojaRecorridos)}&localidad=${enc(loc)}&docid=${S.config.sheetId}`);
+    Render.toast('✓ Localidad agregada.', 'ok'); Handlers.renderRecorridos();
   },
 
   async cargarDB() {
@@ -906,7 +783,7 @@ const Handlers = {
 
   filtrarDB() {
     const q = document.getElementById('search-db-choferes').value.toLowerCase();
-    S.dbChoferesFiltrados = q ? S.dbChoferes.filter(c => c.nombre.toLowerCase().includes(q) || (c.dni && c.dni.includes(q))) : [...S.dbChoferes];
+    S.dbChoferesFiltrados = q ? S.dbChoferes.filter(c => c.nombre.toLowerCase().includes(q) || c.dni.includes(q)) : [...S.dbChoferes];
     Render.db(S.dbChoferesFiltrados);
   },
 
@@ -925,8 +802,7 @@ const Handlers = {
   },
 
   async guardarDB(rowId) {
-    const c = S.dbChoferes.find(k => k.id === rowId);
-    if (!c) return;
+    const c = S.dbChoferes.find(k => k.id === rowId); if (!c) return;
     Object.assign(c, {
       nombre: document.getElementById(`db-in-nom-${rowId}`)?.value.trim() ?? c.nombre,
       direccion: document.getElementById(`db-in-dir-${rowId}`)?.value.trim() ?? c.direccion,
@@ -936,69 +812,59 @@ const Handlers = {
       choferIdAt: document.getElementById(`db-in-idat-${rowId}`)?.value.trim() ?? c.choferIdAt,
       condicion: document.getElementById(`db-in-cond-${rowId}`)?.value ?? c.condicion,
     });
-    LocalDB.saveChoferes(S.dbChoferes);
-    Handlers.cancelarDB(rowId);
-    Render.toast('✓ Cambios guardados localmente', 'ok');
+    if (S.config.appsUrl) {
+      const url = `${S.config.appsUrl}?action=updateRecorridoFila&sheet=${enc('BASE DE DATOS CHOFERES')}&row=${rowId}&docid=${S.config.sheetIdRec || S.config.sheetId}`;
+      Promise.all(['nombre', 'dir', 'dni', 'zona', 'cel', 'id', 'condicion'].map(f => API.ping(`${url}&field=db_${f}&value=${enc(c[f === 'cel' ? 'tel' : f === 'id' ? 'choferIdAt' : f === 'dir' ? 'direccion' : f])}`)));
+    }
+    Handlers.cancelarDB(rowId); Render.toast('✓ Cambios guardados', 'ok');
   },
 
   async toggleActivoDB(rowId, isChecked) {
-    const c = S.dbChoferes.find(k => k.id === rowId);
-    if (!c) return;
-    c.activo = isChecked;
-    LocalDB.saveChoferes(S.dbChoferes);
+    const c = S.dbChoferes.find(k => k.id === rowId); if (!c) return; c.activo = isChecked;
+    if (S.config.appsUrl) API.ping(`${S.config.appsUrl}?action=updateRecorridoFila&sheet=${enc('BASE DE DATOS CHOFERES')}&row=${rowId}&docid=${S.config.sheetIdRec || S.config.sheetId}&field=db_activo&value=${isChecked}`);
   },
 
   async eliminarDB(rowId) {
-    if (!confirm('¿Borrar definitivamente de la memoria?')) return;
-    S.dbChoferes = S.dbChoferes.filter(k => k.id !== rowId);
-    LocalDB.saveChoferes(S.dbChoferes);
-    const f = document.getElementById(`db-row-${rowId}`);
-    if (f) {
-      f.style.transition = 'all 0.4s ease';
-      f.style.opacity = '0';
-      f.style.transform = 'translateX(-20px)';
-      setTimeout(() => { Handlers.filtrarDB(); Render.toast('🗑️ Eliminado permanentemente', 'ok'); }, 400);
-    } else {
-      Handlers.filtrarDB();
-      Render.toast('✓ Eliminado', 'ok');
-    }
+    if (!confirm('¿Borrar definitivamente?')) return;
+    if (S.config.appsUrl) await API.ping(`${S.config.appsUrl}?action=deleteRow&sheet=${enc('BASE DE DATOS CHOFERES')}&row=${rowId}&docid=${S.config.sheetIdRec || S.config.sheetId}`);
+    Render.toast('✓ Eliminado', 'ok'); Handlers.cargarDB();
   },
 
   async confirmarNuevoChofer() {
+    const idat = document.getElementById('nc-idat').value.trim();
     const nom = document.getElementById('nc-nom').value.trim();
-    if (!nom) {
-      Render.toast('⚠️ El nombre completo es obligatorio', 'err');
-      document.getElementById('nc-nom').focus();
-      return;
-    }
+    if (!idat || !nom) return Render.toast('ID y nombre obligatorios', 'err');
 
-    const idat = document.getElementById('nc-idat').value;
-    const btn = document.getElementById('btn-save-chofer');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+    const btn = document.querySelector('#modal-nuevo-chofer .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
-    try {
-      const nuevo = {
-        id: idat, choferIdAt: idat, nombre: nom,
-        tel: document.getElementById('nc-cel').value.trim(),
-        dni: document.getElementById('nc-dni').value.trim(),
-        zona: document.getElementById('nc-zon').value.trim(),
-        direccion: document.getElementById('nc-dir').value.trim(),
-        condicion: document.getElementById('nc-cond').value || 'TITULAR',
-        activo: true
-      };
-      S.dbChoferes.push(nuevo);
-      LocalDB.saveChoferes(S.dbChoferes);
-      Handlers.filtrarDB();
-      this.cerrarModalNuevoChofer();
-      Render.toast('✅ Conductor guardado con éxito', 'ok');
-    } catch (err) {
-      Render.toast('❌ Error al guardar: ' + err.message, 'err');
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '✔️ Guardar Conductor';
+    const nuevo = {
+      id: Date.now(), choferIdAt: idat, nombre: nom,
+      tel: document.getElementById('nc-cel').value.trim(),
+      dni: document.getElementById('nc-dni').value.trim(),
+      zona: document.getElementById('nc-zon').value.trim(),
+      direccion: document.getElementById('nc-dir').value.trim(),
+      condicion: document.getElementById('nc-cond').value || 'Titular',
+      activo: true
+    };
+
+    if (S.config.appsUrl) {
+      const url = `${S.config.appsUrl}?action=addConductorDB&sheet=${enc('BASE DE DATOS CHOFERES')}&idat=${enc(idat)}&nombre=${enc(nom)}&tel=${enc(nuevo.tel)}&dni=${enc(nuevo.dni)}&zona=${enc(nuevo.zona)}&dir=${enc(nuevo.direccion)}&condicion=${enc(nuevo.condicion)}&docid=${S.config.sheetIdRec || S.config.sheetId}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.status === 'error') {
+          if (btn) { btn.disabled = false; btn.textContent = '✓ Guardar Conductor'; }
+          return Render.toast(data.message, 'err'); // Muestra alerta roja y no cierra modal
+        }
+      } catch (e) {
+        console.error("Fetch error or CORS", e);
       }
     }
+
+    Storage.saveLocalNuevoChofer(nuevo); S.dbChoferes.push(nuevo); Handlers.filtrarDB(); Handlers.cerrarModalNuevoChofer();
+    Render.toast('✓ Conductor agregado', 'ok');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Guardar Conductor'; }
   },
 
   cerrarModalNuevoChofer() {
@@ -1022,13 +888,13 @@ const Handlers = {
       return { fecha, cliente: c.nombre, direccion: cliData.direccion || '—', chofer: c.chofer || '—', celular: c.tel || '—', horario: c.horario || '—' };
     });
     Storage.saveToHistorial(records); Storage.clearColectas(); Handlers.cargarColectas();
-    document.getElementById('modal-historial-confirm').style.display = 'none'; Render.toast(`✓ Registros guardados localmente`, 'ok');
+    document.getElementById('modal-historial-confirm').style.display = 'none'; Render.toast(`✓ Registros guardados`, 'ok');
   },
 
   limpiarHistorial() {
     Handlers.abrirAdminModal((pass) => {
       if (pass !== 'Logistica2026') return Render.toast('⚠ Clave incorrecta', 'err');
-      if (!confirm('¿ESTÁ SEGURO? Esta acción borrará permanentemente todo el historial local.')) return;
+      if (!confirm('¿ESTÁ SEGURO? Esta acción borrará permanentemente todos los registros guardados.')) return;
       Storage.clearHistorial(); Handlers.cargarHistorial(); Render.toast('✓ Historial eliminado', 'ok');
     });
   },
@@ -1114,7 +980,7 @@ function initDragDrop(cont) {
 }
 
 // ─── NAVEGACIÓN Y CONFIG ─────────────────────────────────────────
-async function irA(pagina) {
+function irA(pagina) {
   window.toggleMenu(false); S.pagina = pagina; Storage.savePage(pagina);
   document.querySelectorAll('.nav-tab').forEach((b, i) => b.classList.toggle('active', ['clientes', 'despacho', 'recorridos', 'colectas', 'historial', 'db-choferes'][i] === pagina));
   ['despacho', 'clientes', 'recorridos', 'colectas', 'historial', 'db-choferes', 'admin'].forEach(p => { const el = document.getElementById(`page-${p}`); if (el) el.classList.toggle('active', p === pagina); });
@@ -1128,12 +994,12 @@ async function irA(pagina) {
   const rtg = document.getElementById('tab-group-recorridos');
   if (rtg) { rtg.style.display = pagina === 'recorridos' ? 'flex' : 'none'; if (pagina === 'recorridos') document.querySelectorAll('#tab-group-recorridos .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0 && S.hojaRecorridos === 'HOJA DE RECORRIDO') || (i === 1 && S.hojaRecorridos !== 'HOJA DE RECORRIDO'))); }
 
-  if (pagina === 'despacho' && (!S.choferes.length || S.despachoDirty)) { S.despachoDirty = false; await Handlers.cargarDespacho(); }
-  if (pagina === 'clientes') await Handlers.cargarClientes();
-  if (pagina === 'colectas') await Handlers.cargarColectas();
-  if (pagina === 'recorridos') await Handlers.renderRecorridos();
-  if (pagina === 'historial') await Handlers.cargarHistorial();
-  if (pagina === 'db-choferes' && S.dbAutenticado) await Handlers.cargarDB();
+  if (pagina === 'despacho' && (!S.choferes.length || S.despachoDirty)) { S.despachoDirty = false; Handlers.cargarDespacho(); }
+  if (pagina === 'clientes') Handlers.cargarClientes();
+  if (pagina === 'colectas') Handlers.cargarColectas();
+  if (pagina === 'recorridos') Handlers.renderRecorridos();
+  if (pagina === 'historial') Handlers.cargarHistorial();
+  if (pagina === 'db-choferes' && S.dbAutenticado) Handlers.cargarDB();
 }
 
 function cambiarHoja(nombre) { S.hojaDespacho = nombre; S.hojaClientes = nombre; Storage.saveHojaDespacho(nombre); Storage.saveHojaCli(nombre); S.choferes = []; S.enviados = Storage.loadEnviados(nombre); irA('despacho'); }
@@ -1179,26 +1045,12 @@ window.toggleConfigInputs = () => { const el = document.getElementById('admin-co
 window.toggleTheme = () => { const root = document.documentElement; const newTheme = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', newTheme); Storage.saveTheme(newTheme); const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = newTheme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro'; };
 window.toggleMenu = (f) => { const s = document.getElementById('sidebar'); const o = document.getElementById('sidebar-overlay'); if (!s || !o) return; const shouldOpen = typeof f === 'boolean' ? f : !s.classList.contains('open'); s.classList.toggle('open', shouldOpen); o.classList.toggle('show', shouldOpen); };
 window.cerrarAdmin = () => irA('despacho');
-window.agregarLocalidad = () => Handlers.agregarLocalidad();
-window.agregarChofer = () => Handlers.agregarCliente();
-window.agregarFilaDB = () => {
-  const m = document.getElementById('modal-nuevo-chofer');
-  if (m) {
-    m.style.display = 'flex';
-    const nextId = `CH-${Date.now().toString().slice(-6)}`;
-    const idField = document.getElementById('nc-idat');
-    if (idField) idField.value = nextId;
-    document.getElementById('nc-nom').focus();
-  }
-};
-window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer();
-window.cerrarModalNuevoChofer = () => Handlers.cerrarModalNuevoChofer();
+window.agregarLocalidad = () => Handlers.agregarLocalidad(); window.agregarChofer = () => Handlers.agregarCliente(); window.agregarFilaDB = () => { const m = document.getElementById('modal-nuevo-chofer'); if (m) m.style.display = 'flex'; }; window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer(); window.cerrarModalNuevoChofer = () => Handlers.cerrarModalNuevoChofer();
 window.cerrarModalNuevoCliente = () => Handlers.cerrarModalNuevoCliente(); window.confirmarNuevoCliente = () => Handlers.confirmarNuevoCliente();
 window.recargarPagina = () => irA(S.pagina); window.toggleMarcarTodos = () => Handlers.toggleMarcarTodos(); window.limpiarColectas = () => Handlers.limpiarColectas(); window.limpiarHistorial = () => Handlers.limpiarHistorial();
 
-
 // ─── INIT ────────────────────────────────────────────────────────
-async function iniciar() {
+function iniciar() {
   const cfg = Storage.loadConfig();
   // Pre-llenamos los campos de config con los valores actuales
   const fillCfg = () => {
@@ -1215,18 +1067,7 @@ async function iniciar() {
   const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = theme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro';
 
   document.getElementById('sidebar-nav').style.display = 'flex'; document.getElementById('btn-menu').style.display = 'flex'; document.getElementById('btn-reload').style.display = 'block';
-
-  // Iniciamos la carga en paralelo, pero el Splash se encarga de la vista final
-  irA('recorridos');
+  irA(Storage.loadPage() || 'despacho');
 }
 
-// ─── EJECUCIÓN INICIAL ──────────────────────────────────────────
-// Bloqueo de scroll inmediato
-document.body.style.overflow = 'hidden';
-
-// Iniciar procesos de forma independiente para evitar bloqueos
-setTimeout(() => {
-  hideSplashScreen();
-  irA('recorridos');
-}, 2000);
 iniciar();

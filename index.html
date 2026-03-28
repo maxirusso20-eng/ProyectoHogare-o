@@ -5,13 +5,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Despacho — Colectas</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="config.js"></script>
 </head>
 
 <body>
+
+    <!-- ── SPLASH SCREEN ─────────────────────────── -->
+    <div id="splash-screen" class="splash-overlay">
+        <div class="splash-content">
+            <div class="splash-logo">
+                <svg class="truck-icon" viewBox="0 0 640 512" width="100" height="100">
+                    <path fill="#3b82f6"
+                        d="M624 352h-16V243.9c0-12.7-5.1-24.9-14.1-33.9L494 110.1c-9-9-21.2-14.1-33.9-14.1H416V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48v320c0 26.5 21.5 48 48 48h16c0 53 43 96 96 96s96-43 96-96h128c0 53 43 96 96 96s96-43 96-96h48c8.8 0 16-7.2 16-16v-32c0-8.8-7.2-16-16-16zM160 464c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm320 0c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm80-208H416V144h44.1l99.9 99.9V256z" />
+                </svg>
+                <h1
+                    style="font-family:'Plus Jakarta Sans', sans-serif; font-size: 2.8rem; color:#fff; margin-top:30px; letter-spacing:-0.04em; font-weight: 800;">
+                    Logistica <span style="color:#3b82f6;">Hogareño</span>
+                </h1>
+                <p
+                    style="font-size: 1rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.5em; margin-top: 12px; text-transform: uppercase; font-family: 'Inter', sans-serif;">
+                    2026
+                </p>
+            </div>
+        </div>
+    </div>
 
     <!-- ── SIDEBAR ────────────────────────────────── -->
     <div id="sidebar-overlay" onclick="toggleMenu()"></div>
@@ -35,9 +56,15 @@
 
     <!-- ── HEADER ─────────────────────────────────── -->
     <header>
-        <div style="display:flex;align-items:center;gap:12px;">
-            <button id="btn-menu" class="btn-menu" onclick="toggleMenu()" style="display:none">☰ Menú</button>
-            <div class="logo">Logistica Hogareño</div>
+        <div style="display:flex;align-items:center;gap:16px;">
+            <button id="btn-menu" class="btn-menu" onclick="toggleMenu()" style="display:none">☰</button>
+            <div class="logo">
+                <svg class="truck-icon" viewBox="0 0 640 512" width="24" height="24">
+                    <path fill="currentColor"
+                        d="M624 352h-16V243.9c0-12.7-5.1-24.9-14.1-33.9L494 110.1c-9-9-21.2-14.1-33.9-14.1H416V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48v320c0 26.5 21.5 48 48 48h16c0 53 43 96 96 96s96-43 96-96h128c0 53 43 96 96 96s96-43 96-96h48c8.8 0 16-7.2 16-16v-32c0-8.8-7.2-16-16-16zM160 464c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm320 0c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm80-208H416V144h44.1l99.9 99.9V256z" />
+                </svg>
+                Logistica <span>Hogareño</span>
+            </div>
         </div>
 
         <div class="tab-group" id="tab-group" style="display:none">
@@ -55,10 +82,7 @@
             <button class="tab-btn" onclick="cambiarHojaRecorrido('HOJA DE RECORRIDOS SABADOS')">SÁBADO</button>
         </div>
 
-        <div class="header-actions">
-            <div id="status-dot" class="status-dot"></div>
-            <button id="btn-reload" class="btn-sm" onclick="recargarPagina()" style="display:none">↻ Actualizar</button>
-        </div>
+        <div class="header-actions"></div>
     </header>
 
     <!-- ── MODAL SEGURIDAD ────────────────────────── -->
@@ -80,61 +104,88 @@
         </div>
     </div>
 
-    <!-- ── MODAL NUEVO CONDUCTOR ──────────────────── -->
     <div id="modal-nuevo-chofer" class="modal-overlay" style="display:none">
-        <div class="modal-card" style="max-width:460px">
+        <div class="modal-card">
             <div class="modal-header">
-                <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;">➕ Nuevo Conductor</h3>
+                <h3>+ Nuevo Conductor</h3>
                 <button onclick="cerrarModalNuevoChofer()" class="btn-close">✕</button>
             </div>
+
+            <div class="modal-body">
+                <div class="modal-grid-2">
+                    <div class="field">
+                        <label>ID CONDUCTOR</label>
+                        <input type="text" id="nc-idat" readonly style="opacity:0.6; cursor:not-allowed;">
+                    </div>
+                    <div class="field">
+                        <label>CONDUCTOR (NOMBRE COMPLETO) *</label>
+                        <input type="text" id="nc-nom" placeholder="Apellido, Nombre" required>
+                    </div>
+                    <div class="field">
+                        <label>CELULAR</label>
+                        <input type="tel" id="nc-cel" placeholder="11xxxxxxxx">
+                    </div>
+                    <div class="field">
+                        <label>DNI</label>
+                        <input type="number" id="nc-dni" placeholder="xxxxxxxx">
+                    </div>
+                    <div class="field">
+                        <label>ZONA PREFERENCIAL</label>
+                        <input type="text" id="nc-zon" placeholder="Ej: ZONA NORTE">
+                    </div>
+                    <div class="field">
+                        <label>CONDICIÓN</label>
+                        <select id="nc-cond">
+                            <option value="TITULAR" selected>TITULAR</option>
+                            <option value="SEMITITULAR">SEMITITULAR</option>
+                            <option value="SUPLENTE">SUPLENTE</option>
+                        </select>
+                    </div>
+                    <div class="field field-full">
+                        <label>DIRECCIÓN COMPLETA</label>
+                        <input type="text" id="nc-dir" placeholder="Calle Nº, Localidad">
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button onclick="cerrarModalNuevoChofer()" class="btn-outline">Cancelar</button>
+                    <button id="btn-save-chofer" onclick="confirmarNuevoChofer()" class="btn-primary btn-pill">✔️
+                        Guardar Conductor</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL NUEVO CLIENTE ────────────────────── -->
+    <div id="modal-nuevo-cliente" class="modal-overlay" style="display:none">
+        <div class="modal-card" style="max-width:460px">
+            <div class="modal-header">
+                <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;">👥 Nuevo Cliente</h3>
+                <button onclick="window.cerrarModalNuevoCliente()" class="btn-close">✕</button>
+            </div>
             <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;padding:24px">
-                <!-- ID + NOMBRE -->
+                <!-- NOMBRE -->
+                <div class="field" style="margin:0">
+                    <label>Nombre del Cliente *</label>
+                    <input type="text" id="ncli-nom" class="inp-inline" placeholder="Nombre completo o Empresa">
+                </div>
+                <!-- HORARIO + DIRECCION -->
                 <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
                     <div class="field" style="margin:0">
-                        <label>ID del Conductor *</label>
-                        <input type="text" id="nc-idat" class="inp-inline" placeholder="Ej: CH001">
+                        <label>Horario</label>
+                        <input type="text" id="ncli-hor" class="inp-inline" placeholder="Ej: 09:00 a 14:00">
                     </div>
                     <div class="field" style="margin:0">
-                        <label>Nombre Completo *</label>
-                        <input type="text" id="nc-nom" class="inp-inline" placeholder="Apellido, Nombre">
+                        <label>Dirección</label>
+                        <input type="text" id="ncli-dir" class="inp-inline" placeholder="Calle, Altura, Localidad">
                     </div>
-                </div>
-                <!-- CELULAR + DNI -->
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                    <div class="field" style="margin:0">
-                        <label>Celular</label>
-                        <input type="text" id="nc-cel" class="inp-inline" placeholder="11xxxxxxxx">
-                    </div>
-                    <div class="field" style="margin:0">
-                        <label>DNI</label>
-                        <input type="text" id="nc-dni" class="inp-inline" placeholder="xxxxxxxx">
-                    </div>
-                </div>
-                <!-- ZONA -->
-                <div class="field" style="margin:0">
-                    <label>Zona Preferencial</label>
-                    <input type="text" id="nc-zon" class="inp-inline" placeholder="Ej: ZONA NORTE">
-                </div>
-                <!-- DIRECCIÓN -->
-                <div class="field" style="margin:0">
-                    <label>Dirección de Domicilio</label>
-                    <input type="text" id="nc-dir" class="inp-inline" placeholder="Calle Nº, Localidad">
-                </div>
-                <!-- CONDICIÓN -->
-                <div class="field" style="margin:0">
-                    <label>Condición</label>
-                    <select id="nc-cond" class="select-inline" style="width:100%;height:38px;font-size:0.85rem">
-                        <option value="Titular" selected>Titular</option>
-                        <option value="Semititular">Semititular</option>
-                        <option value="Suplente">Suplente</option>
-                    </select>
                 </div>
                 <!-- BOTONES -->
-                <div style="display:flex;gap:8px;margin-top:4px">
-                    <button onclick="cerrarModalNuevoChofer()" class="btn-cancel"
+                <div style="display:flex;gap:8px;margin-top:10px">
+                    <button onclick="window.cerrarModalNuevoCliente()" class="btn-cancel"
                         style="flex:1;padding:10px">Cancelar</button>
-                    <button onclick="confirmarNuevoChofer()" class="btn-save"
-                        style="flex:2;padding:10px;font-size:0.82rem">✓ Guardar Conductor</button>
+                    <button onclick="window.confirmarNuevoCliente()" class="btn-save"
+                        style="flex:2;padding:10px;font-size:0.82rem">✓ Guardar Cliente</button>
                 </div>
             </div>
         </div>
@@ -235,8 +286,9 @@
                         <th>CLIENTE</th>
                         <th>CHOFER</th>
                         <th>CELULAR</th>
+                        <th style="width:80px;text-align:center">PROG.</th>
                         <th style="width:80px;text-align:center">COLEC.</th>
-                        <th style="width:100px;text-align:center">HORA</th>
+                        <th style="width:100px;text-align:center">LLEGADA</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -285,9 +337,9 @@
         <div class="recorridos-header">
             <h2>📂 Base de Datos de Choferes</h2>
             <div class="rec-actions">
-                <button id="btn-new-db" class="btn-sm btn-accent" onclick="agregarFilaDB()" style="display:none">+ Nuevo
-                    Registro</button>
-                <button class="btn-sm" onclick="irA('despacho')">Cerrar</button>
+                <button id="btn-new-db" class="btn-pill btn-accent" onclick="agregarFilaDB()" style="display:none">+
+                    Nuevo Conductor</button>
+                <button class="btn-outline" onclick="irA('despacho')">Cerrar</button>
             </div>
         </div>
         <div class="search-row">
@@ -298,7 +350,6 @@
             <table class="db-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
                         <th>CONDUCTOR</th>
                         <th>CELULAR</th>
                         <th>DNI</th>
@@ -357,6 +408,12 @@
             <button class="btn-admin-opt" onclick="toggleConfigInputs()">
                 <span style="font-size:1.5rem;">⚙️</span>
                 <div><strong>Conexión Sheets</strong><small>Modificar IDs de planillas y URL del macro</small></div>
+            </button>
+            <button class="btn-admin-opt" onclick="Migrator.run()"
+                style="border: 1px solid var(--accent); background: rgba(37, 99, 235, 0.1);">
+                <span style="font-size:1.5rem;">🚀</span>
+                <div><strong>Sincronización Final</strong><small>Descargar todo de Sheets a la memoria local</small>
+                </div>
             </button>
             <button class="btn-admin-opt danger" onclick="resetConfig()">
                 <span style="font-size:1.5rem;">🗑️</span>
