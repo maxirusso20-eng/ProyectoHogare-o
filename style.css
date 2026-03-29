@@ -102,7 +102,7 @@
   --action-bar-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --text-platinum: #f8fafc;
   --radius: 16px;
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
 [data-theme="light"] {
@@ -459,7 +459,6 @@ body {
   justify-content: center;
   gap: 15px;
   background: var(--action-bar-bg);
-  backdrop-filter: blur(12px);
   padding: 12px 24px;
   border-radius: 12px;
   border: 1px solid var(--action-bar-border);
@@ -2115,13 +2114,12 @@ tr[draggable="true"].dragging {
 
 /* ── CONFIRMACIÓN BÓVEDA PREMIUM ──────────────── */
 #modal-confirm.modal-overlay {
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  background: rgba(0, 0, 0, 0.75);
+  -webkit-backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.85);
   display: none !important;
 }
 
-.confirm-card {
+#modal-confirm .modal-card {
   background: #0f172a !important;
   /* Azul Ultra Oscuro */
   border-radius: 20px !important;
@@ -2133,17 +2131,17 @@ tr[draggable="true"].dragging {
   max-width: 380px !important;
 }
 
-.confirm-icon {
+#confirm-icon {
   font-size: 3rem;
   margin-bottom: 20px;
 }
 
-.confirm-content h2 {
+#confirm-title {
   margin-bottom: 10px;
   color: #fff;
 }
 
-.confirm-content p {
+#confirm-msg {
   color: #94a3b8;
   margin-bottom: 30px;
 }
@@ -2160,8 +2158,6 @@ tr[draggable="true"].dragging {
   border-radius: 12px;
   border: 1px solid transparent;
   font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s ease;
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
@@ -2215,7 +2211,8 @@ tr[draggable="true"].dragging {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  will-change: transform, opacity;
+  background: rgba(0, 0, 0, 0.85);
   display: none !important;
   /* Oculto por defecto absoluto */
   align-items: center;
@@ -2228,6 +2225,7 @@ tr[draggable="true"].dragging {
 }
 
 .modal-card {
+  will-change: transform, opacity;
   background: var(--surface);
   border-radius: 16px;
   overflow: hidden;
@@ -2549,9 +2547,7 @@ h2 {
 
 /* Cards Glassmorphism */
 .chofer-card {
-  background: rgba(22, 24, 28, 0.8) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  background: rgba(22, 24, 28, 0.95) !important;
   border-radius: 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 24px rgba(0, 0, 0, 0.4) !important;
@@ -2567,9 +2563,8 @@ h2 {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.8) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  will-change: transform, opacity;
   z-index: 10000;
   display: none;
   align-items: center;
@@ -2591,6 +2586,7 @@ h2 {
   background: #0f172a !important;
   border: 1px solid rgba(59, 130, 246, 0.4) !important;
   border-radius: 20px !important;
+  will-change: transform, opacity;
   width: 90%;
   max-width: 450px;
   overflow: hidden;
@@ -2733,73 +2729,69 @@ button.btn-accent:hover {
 /* ---------------------------------------------------------- */
 /* ?? ANTIGRAVITY 2026: CARD GLOW OVERRIDE                    */
 /* ---------------------------------------------------------- */
-.chofer-card {
-  border-top: 2px solid var(--accent) !important;
-  box-shadow: inset 0 12px 24px -12px rgba(37, 99, 235, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+/* --- REPARACIÓN DEFINITIVA MODO CLARO --- */
+[data-theme="light"] {
+  --text: #0f172a !important;
+  /* Negro azulado para títulos */
+  --text-muted: #475569 !important;
+  /* Gris oscuro para subtítulos */
+  --surface: #ffffff !important;
+  /* Fondo blanco puro */
+  --border: #e2e8f0 !important;
+  /* Bordes suaves */
 }
 
-/* ELIMINACIÓN DE PARPADEO AL INICIO - SENIOR FIX */
-#modal-confirm,
-#modal-admin-pass {
-  display: none !important;
-}
-
-/* Corrección de visibilidad para Modo Claro (Driver Database) */
-.light-mode .db-table th,
-.light-mode .db-table td {
-  color: #1e293b !important;
-  /* Un gris casi negro, muy legible */
-}
-
-/* Selectores adaptados para la estructura actual (#page-db-choferes) */
-.light-mode #page-db-choferes h2,
-.light-mode #page-db-choferes p,
-.light-mode #db-counter {
+/* Forzar color en elementos que se "resisten" */
+[data-theme="light"] .chofer-name,
+[data-theme="light"] .db-table td,
+[data-theme="light"] .cliente-nombre,
+[data-theme="light"] .db-table th,
+[data-theme="light"] #db-counter,
+[data-theme="light"] .modal-card h2,
+[data-theme="light"] .modal-card p,
+[data-theme="light"] h2,
+[data-theme="light"] p,
+[data-theme="light"] .logo {
   color: #0f172a !important;
-  /* Títulos bien oscuros */
 }
 
-/* Fondo blanco real para las filas de la tabla */
-.light-mode .db-table tr {
-  background-color: #ffffff !important;
-  border-bottom: 1px solid #e2e8f0;
+/* Ajuste del Logo en Modo Claro */
+[data-theme="light"] .logo span {
+  color: #3b82f6 !important;
 }
 
-/* Estilo para el input de búsqueda de la base de datos */
-.light-mode #search-db-choferes {
-  background-color: #f8fafc !important;
-  color: #1e293b !important;
+/* Textos secundarios (teléfonos, direcciones) */
+[data-theme="light"] .chofer-meta small,
+[data-theme="light"] .cliente-dir,
+[data-theme="light"] .db-table td:nth-child(3),
+[data-theme="light"] .db-table td:nth-child(4) {
+  color: #475569 !important;
+}
+
+/* Cards de Despacho en Modo Claro */
+[data-theme="light"] .chofer-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="light"] .chofer-card.enviado {
+  background: #dbeafe !important;
+  border-color: #3b82f6 !important;
+}
+
+/* Buscador en Modo Claro */
+[data-theme="light"] #search-db-choferes,
+[data-theme="light"] .db-search-input {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
   border: 1px solid #cbd5e1 !important;
 }
 
-/* ── ADAPTACIÓN DE CARDS (MODO CLARO) ── */
-.light-mode .chofer-card {
-  background-color: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+[data-theme="light"] .cliente-nombre {
+  color: #0f172a !important;
 }
 
-.light-mode .chofer-card:hover {
-  background-color: #f8fafc !important;
-  border-color: #3b82f6 !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08) !important;
-}
-
-.light-mode .chofer-card.enviado {
-  background-color: #dbeafe !important;
-  /* Azul suave */
-  border-color: #3b82f6 !important;
-}
-
-.light-mode .chofer-card.enviado .chofer-name {
-  color: #1e3a8a !important;
-  /* Azul marino profundo */
-}
-
-.light-mode .cliente-nombre {
-  color: #1e293b !important;
-}
-
-.light-mode .cliente-dir {
-  color: #64748b !important;
+[data-theme="light"] .cliente-dir {
+  color: #475569 !important;
 }

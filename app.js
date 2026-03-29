@@ -619,15 +619,23 @@ const Render = {
   despacho(lista) {
     const grid = document.getElementById('choferes-grid');
     const empty = document.getElementById('empty-despacho');
-    grid.innerHTML = '';
-    if (!lista.length) { empty.style.display = 'block'; return; }
-    empty.style.display = 'none';
+    if (!grid) return;
+
+    if (!lista.length) {
+      grid.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    const fragment = document.createDocumentFragment();
 
     lista.forEach((c, index) => {
       const card = document.createElement('div');
       card.className = `chofer-card${c.enviado ? ' enviado' : ''}`;
       card.style.animationDelay = `${(index % 15) * 0.05}s`;
       card.dataset.nombre = c.nombre;
+
       const waHref = buildWA(c);
       const totalClientes = c.clientes.length;
 
@@ -658,8 +666,31 @@ const Render = {
           ${waHref ? `<a class="btn-wa" href="${waHref}" target="_blank" data-action="marcar-enviado" data-nombre="${x(c.nombre)}">🚀 ENVIAR POR WHATSAPP</a>` : `<button class="btn-wa btn-wa-disabled" disabled>⚠ Sin teléfono</button>`}
           <button class="btn-toggle${c.enviado ? ' btn-toggle-sent' : ''}" data-action="toggle-enviado" data-nombre="${x(c.nombre)}">${c.enviado ? '✓ Enviado' : 'Marcar'}</button>
         </div>`;
-      grid.appendChild(card);
+      fragment.appendChild(card);
     });
+
+    grid.innerHTML = '';
+    grid.appendChild(fragment);
+  },
+
+  despachoSabado(lista) {
+    this.despacho(lista);
+  },
+
+  errorModal(titulo, mensaje) {
+    const modal = document.getElementById('modal-error-integrity');
+    if (!modal) {
+      console.error("Critical: modal-error-integrity not found in DOM");
+      Render.toast(mensaje, 'err');
+      return;
+    }
+    const tEl = document.getElementById('error-int-title');
+    const mEl = document.getElementById('error-int-msg');
+    if (tEl) tEl.textContent = titulo;
+    if (mEl) mEl.innerHTML = mensaje;
+
+    modal.style.display = 'flex';
+    modal.animate([{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
   },
 
   stats() {
@@ -828,6 +859,8 @@ const Handlers = {
     const c = S.choferes.find(k => k.nombre === nombre);
     if (!c) return;
     const nuevo = forzar ? true : !c.enviado;
+    if (c.enviado === nuevo && !forzar) return; // Evitar guardado innecesario si no hay cambio
+
     c.enviado = nuevo;
     nuevo ? S.enviados.add(nombre) : S.enviados.delete(nombre);
     Storage.saveEnviados(S.hojaDespacho, S.enviados);
@@ -1140,14 +1173,18 @@ const Handlers = {
     }
 
     if (!S.recorridos) S.recorridos = [];
-    const currentZona = S.recorridos.find(z => z.filas.some(f => f.id == rowId));
-    if (currentZona) {
-      const existe = currentZona.filas.some(f => f.id != rowId && f.idChofer && f.idChofer.toUpperCase() === idat);
-      if (existe) {
-        Render.toast('El chofer ya está en esta zona', 'error');
-        inp.value = "";
-        return;
-      }
+
+    // Validación de Doble Asignación en toda la hoja
+    let duplicadoEn = null;
+    S.recorridos.forEach(z => {
+      const f = z.filas.find(row => row.id != rowId && row.idChofer && row.idChofer.toUpperCase() === idat);
+      if (f) duplicadoEn = z.nombre || 'otra zona';
+    });
+
+    if (duplicadoEn) {
+      Render.errorModal('Doble Asignación', `El ID <strong>${idat}</strong> ya está asignado a la localidad de <strong>${duplicadoEn}</strong>.`);
+      inp.value = "";
+      return;
     }
 
     const found = S.choferesBDFull.find(c => c.choferIdAt && c.choferIdAt.toUpperCase() === idat);
@@ -1238,6 +1275,16 @@ const Handlers = {
     const tel = document.getElementById('nc-cel').value.trim();
     if (!idat || !nom || !tel) { Render.toast('ID, Nombre y Celular son obligatorios', 'err'); return; }
 
+    // VALIDACIÓN DE DUPLICADOS EN DB (Blindada con String)
+    const idatUpper = String(idat).toUpperCase();
+    const editIdStr = String(S._editId || '');
+    const existe = S.dbChoferesBDFull.find(c => String(c.id).toUpperCase() === idatUpper && String(c.id) !== editIdStr);
+
+    if (existe) {
+      Render.errorModal('ID Duplicado', `El ID <strong>${idat}</strong> ya está asignado al conductor <strong>${existe.nombre}</strong>.`);
+      return;
+    }
+
     try {
       const data = {
         choferIdAt: idat, nombre: nom, tel: tel,
@@ -1249,7 +1296,7 @@ const Handlers = {
 
       if (S._editId) {
         // MODO EDICIÓN
-        const idx = S.dbChoferesBDFull.findIndex(x => x.id === S._editId);
+        const idx = S.dbChoferesBDFull.findIndex(x => String(x.id) === String(S._editId));
         if (idx !== -1) {
           Object.assign(S.dbChoferesBDFull[idx], data);
           S.dbChoferesBDFull[idx].id = idat;
@@ -1282,7 +1329,8 @@ const Handlers = {
   },
 
   cerrarModalNuevoChofer() {
-    document.getElementById('modal-nuevo-chofer').style.display = 'none';
+    const m = document.getElementById('modal-nuevo-chofer');
+    if (m) m.style.display = 'none';
     ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dni', 'nc-zon', 'nc-dir', 'nc-cond'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
     // Resetear título a default
@@ -1316,7 +1364,8 @@ const Handlers = {
 
   mostrarConfirmarHistorial() {
     if (!S.colectas.filter(c => c.colecta).length) return Render.toast('⚠ No hay colectas marcadas hoy', 'info');
-    document.getElementById('modal-historial-confirm').style.display = 'flex';
+    const m = document.getElementById('modal-historial-confirm');
+    if (m) m.style.display = 'flex';
   },
 
   guardarHistorial() {
@@ -1328,7 +1377,9 @@ const Handlers = {
       return { fecha, cliente: c.nombre, direccion: cliData.direccion || '—', chofer: c.chofer || '—', celular: c.tel || '—', horario: c.horario || '—' };
     });
     Storage.saveToHistorial(records); Storage.clearColectas(); Handlers.cargarColectas();
-    document.getElementById('modal-historial-confirm').style.display = 'none'; Render.toast(`✓ Registros guardados localmente`, 'ok');
+    const m = document.getElementById('modal-historial-confirm');
+    if (m) m.style.display = 'none';
+    Render.toast(`✓ Registros guardados localmente`, 'ok');
   },
 
   limpiarHistorial() {
@@ -1612,6 +1663,41 @@ async function iniciar() {
 // ─── EJECUCIÓN INICIAL ──────────────────────────────────────────
 // Bloqueo de scroll inmediato
 document.body.style.overflow = 'hidden';
+
+// ─── GLOBAL MODAL LISTENERS ──────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const modals = [
+      { id: 'modal-nuevo-chofer', close: () => Handlers.cerrarModalNuevoChofer() },
+      { id: 'modal-nuevo-cliente', close: () => Handlers.cerrarModalNuevoCliente() },
+      { id: 'modal-confirm', close: () => Handlers.cerrarConfirm() },
+      { id: 'modal-admin-pass', close: () => Handlers.cerrarAdminModal() },
+      { id: 'modal-nueva-localidad', close: () => window.cerrarModalNuevaLocalidad() },
+      { id: 'modal-error-integrity', close: () => { const el = document.getElementById('modal-error-integrity'); if (el) el.style.display = 'none'; } },
+      { id: 'modal-historial-confirm', close: () => { const el = document.getElementById('modal-historial-confirm'); if (el) el.style.display = 'none'; } }
+    ];
+
+    modals.forEach(m => {
+      const el = document.getElementById(m.id);
+      if (el && el.style.display !== 'none') {
+        m.close();
+      }
+    });
+  }
+});
+
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) {
+    const id = e.target.id;
+    if (id === 'modal-nuevo-chofer') Handlers.cerrarModalNuevoChofer();
+    else if (id === 'modal-nuevo-cliente') Handlers.cerrarModalNuevoCliente();
+    else if (id === 'modal-confirm') Handlers.cerrarConfirm();
+    else if (id === 'modal-admin-pass') Handlers.cerrarAdminModal();
+    else if (id === 'modal-nueva-localidad') window.cerrarModalNuevaLocalidad();
+    else if (id === 'modal-error-integrity') e.target.style.display = 'none';
+    else if (id === 'modal-historial-confirm') e.target.style.display = 'none';
+  }
+});
 
 // Iniciar procesos
 iniciar();
