@@ -439,6 +439,8 @@ const API = {
         if (ovr.idChofer !== undefined) r[2] = ovr.idChofer;
         if (ovr.nombreChofer !== undefined) r[3] = ovr.nombreChofer;
         if (ovr.zona_manual !== undefined) r[6] = ovr.zona_manual;
+        if (ovr.paquetes !== undefined) r.paquetes = ovr.paquetes;
+        if (ovr.paquetesFuera !== undefined) r.paquetesFuera = ovr.paquetesFuera;
       }
       const colB = r[1]?.toString().trim() || '';
       const colC = r[2]?.toString().trim() || '';
@@ -455,7 +457,11 @@ const API = {
       const zonaFinal = colG || ((zonaAuto && (currentZona === 'GENERAL' || currentZona === 'OTRA ZONA')) ? zonaAuto : currentZona);
 
       if (!zonasMap[zonaFinal]) zonasMap[zonaFinal] = { id: i, nombre: zonaFinal, filas: [] };
-      zonasMap[zonaFinal].filas.push({ id: i + 1, localidad: colB, idChofer: colC, nombreChofer: colD, colecta: colE, colectan: colF });
+      zonasMap[zonaFinal].filas.push({
+        id: i + 1, localidad: colB, idChofer: colC, nombreChofer: colD,
+        colecta: colE, colectan: colF,
+        paquetes: r.paquetes || '', paquetesFuera: r.paquetesFuera || ''
+      });
     }
     return Object.values(zonasMap);
   },
@@ -749,12 +755,27 @@ const Render = {
   },
   _zonaBlock(z) {
     const div = document.createElement('div'); div.className = 'zona-block'; div.dataset.zonaid = z.id;
-    div.innerHTML = `<div class="zona-title-row"><input class="zona-name-input" value="${x(z.nombre)}" readonly><button class="btn-del-zona" data-action="eliminar-zona" data-nombre="${x(z.nombre)}" data-ids="${x(JSON.stringify(z.filas.map(f => f.id)))}">🗑️ Borrar zona</button></div><table class="rec-table"><thead><tr><th></th><th>LOCALIDAD</th><th>ID CHOFER</th><th>NOMBRE CHOFER</th><th></th></tr></thead><tbody class="zona-tbody" data-zona="${x(z.nombre)}">${(z.filas || []).map(f => Render._recorridoFila(f, z.nombre)).join('')}</tbody></table>`;
+    div.innerHTML = `<div class="zona-title-row"><input class="zona-name-input" value="${x(z.nombre)}" readonly><button class="btn-del-zona" data-action="eliminar-zona" data-nombre="${x(z.nombre)}" data-ids="${x(JSON.stringify(z.filas.map(f => f.id)))}">🗑️ Borrar zona</button></div><table class="rec-table"><thead><tr><th></th><th>LOCALIDAD</th><th>ID</th><th>CHOFER</th><th>PAQUETE</th><th>POR FUERA</th><th></th></tr></thead><tbody class="zona-tbody" data-zona="${x(z.nombre)}">${(z.filas || []).map(f => Render._recorridoFila(f, z.nombre)).join('')}</tbody></table>`;
     return div;
   },
   _recorridoFila(f, zonaNombre) {
     const trashIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>`;
-    return `<tr data-rowid="${f.id}" draggable="true" id="rec-tr-${f.id}"><td><span class="drag-handle" title="Arrastrar">⠿</span></td><td><input class="rec-inp" value="${x(f.localidad)}" placeholder="Localidad" data-action="guardar-rec-field" data-row="${f.id}" data-field="localidad"></td><td><input class="rec-inp" id="rec-id-${f.id}" value="${x(S.choferesBDFull.find(k => k.nombre === f.nombreChofer)?.choferIdAt || f.idChofer || '')}" placeholder="ID" data-action="id-select" data-row="${f.id}" style="text-align:center"></td><td><span class="rec-nombre-display" id="rec-nom-${f.id}">${x(f.nombreChofer || '— Sin asignar —')}</span></td><td><button class="btn-del-rec" onclick="Handlers.quitarChoferDeRecorrido('${x(zonaNombre)}', '${f.id}')" title="Eliminar fila">${trashIcon}</button></td></tr>`;
+
+    // Evaluar estado inicial para el color rojo (con conversión explícita)
+    const clsPaq = (Number(f.paquetes || 0) > 40) ? ' over-limit' : '';
+    const clsExt = (Number(f.paquetesFuera || 0) > 40) ? ' over-limit' : '';
+
+    return `<tr data-rowid="${f.id}" draggable="true" id="rec-tr-${f.id}">
+      <td><span class="drag-handle" title="Arrastrar">⠿</span></td>
+      <td><input class="rec-inp" value="${x(f.localidad)}" placeholder="Localidad" data-action="guardar-rec-field" data-row="${f.id}" data-field="localidad"></td>
+      <td><input class="rec-inp id-chofer" id="rec-id-${f.id}" value="${x(S.choferesBDFull.find(k => k.nombre === f.nombreChofer)?.choferIdAt || f.idChofer || '')}" placeholder="ID" data-action="id-select" data-row="${f.id}" style="text-align:center"></td>
+      <td><span class="rec-nombre-display" id="rec-nom-${f.id}">${x(f.nombreChofer || '— Sin asignar —')}</span></td>
+      
+      <td><input type="number" class="rec-inp num-inp${clsPaq}" value="${x(f.paquetes)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="paquetes" oninput="this.classList.toggle('over-limit', this.value > 40)"></td>
+      <td><input type="number" class="rec-inp num-inp${clsExt}" value="${x(f.paquetesFuera)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="paquetesFuera" oninput="this.classList.toggle('over-limit', this.value > 40)"></td>
+      
+      <td><button class="btn-del-rec" onclick="Handlers.quitarChoferDeRecorrido('${x(zonaNombre)}', '${f.id}')" title="Eliminar fila">${trashIcon}</button></td>
+    </tr>`;
   },
 
   syncIndicator(show) {
