@@ -31,6 +31,7 @@ const S = {
   editandoDB: null,
 
   dbAutenticado: false,
+  filtroDB: 'titulares',
   despachoDirty: false,
   initialLoadFinished: false,
 };
@@ -39,42 +40,29 @@ const S = {
 document.body.style.overflow = 'hidden';
 
 // ─── SPLASH CONTROL ──────────────────────────────────────────────
-async function hideSplashScreen() {
+function hideSplashScreen() {
   const splash = document.getElementById('splash-screen');
   if (!splash) return;
 
   document.body.style.overflow = 'hidden';
 
-  const isFresh = S.choferesBDFull.length === 0;
-  const timeToShow = 2000; // 2 segundos exactos
+  // Sincronización en background — NO bloquea al usuario
+  Store.syncEverything().catch(e => console.warn('Sync background:', e));
 
-  // Iniciar sincronización AUTOMÁTICA en paralelo inmediatamente
-  const syncJob = Store.syncEverything();
+  // 2 segundos fijos, sin excepciones
+  setTimeout(() => {
+    // 1. Aterrizar en Recorridos
+    window.irA('recorridos');
 
-  setTimeout(async () => {
-    // Si el localStorage está vacío, la sincronización es obligatoria
-    if (isFresh) {
-      const syncStatus = document.getElementById('sync-text');
-      if (syncStatus) syncStatus.textContent = "Hidratación inicial obligatoria...";
-      try {
-        // Esperamos a que la sincronización termine o falle (max 5 seg adicionales para no bloquear por siempre)
-        await Promise.race([syncJob, new Promise(r => setTimeout(r, 5000))]);
-      } catch (e) {
-        console.warn("Sincronización inicial falló o tardó demasiado");
-      }
-    }
-
-    // Forzar sección Recorridos al iniciar
-    if (typeof irA === 'function') irA('recorridos');
-
+    // 2. Iniciar fade-out del splash
     splash.classList.add('fade-out');
 
-    // Restaurar scroll y eliminar del DOM tras la transición (0.8s)
+    // 3. Remover del DOM y restaurar scroll tras la animación (0.8s)
     setTimeout(() => {
       splash.remove();
       document.body.style.overflow = '';
     }, 800);
-  }, timeToShow);
+  }, 2000);
 }
 
 // ─── PASSWORD HELPERS ────────────────────────────────────────────
@@ -349,7 +337,7 @@ const API = {
       dni: r[3]?.toString().trim() || '',
       zona: r[4]?.toString().trim() || '',
       direccion: r[5]?.toString().trim() || '',
-      condicion: r[6]?.toString().trim() || 'TITULAR',
+      ingreso: r[6]?.toString().trim() || '—',
       activo: r[7]?.toString().toUpperCase() !== 'FALSE'
     })).filter(c => c.nombre);
   },
@@ -695,7 +683,7 @@ const Render = {
     if (tEl) tEl.textContent = titulo;
     if (mEl) mEl.innerHTML = mensaje;
 
-    modal.style.display = 'flex';
+    modal.style.setProperty('display', 'flex', 'important');
     modal.animate([{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
   },
 
@@ -740,10 +728,10 @@ const Render = {
     });
   },
   _colectaRow(c) {
-    return `<td class="td-cliente">${x(c.nombre)}</td><td class="td-chofer">${x(c.chofer) || '—'}</td><td class="td-horario">${c.tel ? fmtTel(c.tel) : '—'}</td><td class="td-horario" style="color:var(--text-muted);font-weight:600;text-align:center">${x(c.horarioProg)}</td><td style="text-align:center"><input type="checkbox" class="rec-check" ${c.colecta ? 'checked' : ''} data-action="marcar-llegada" data-row="${c.rowIndex}"></td><td class="td-horario" id="hora-col-${c.rowIndex}">${c.horario ? `<span style="color:var(--accent);font-weight:700;">${c.horario}</span>` : ''}</td><td class="td-acciones"><button class="btn-edit" data-action="editar-colecta" data-row="${c.rowIndex}">✏</button></td>`;
+    return `<td class="td-cliente">${x(c.nombre)}</td><td class="td-chofer">${x(c.chofer) || '—'}</td><td class="td-horario">${c.tel ? fmtTel(c.tel) : '<span style="color:var(--text-muted)">—</span>'}</td><td style="text-align:center"><input type="checkbox" class="rec-check" ${c.colecta ? 'checked' : ''} data-action="marcar-llegada" data-row="${c.rowIndex}"></td><td class="td-horario" id="hora-col-${c.rowIndex}">${c.horario ? `<span style="color:var(--accent);font-weight:700;">${c.horario}</span>` : ''}</td><td class="td-acciones"><button class="btn-edit" data-action="editar-colecta" data-row="${c.rowIndex}">✏</button></td>`;
   },
   _colectaEditRow(c) {
-    return `<td class="td-cliente">${x(c.nombre)}</td><td class="td-chofer">${x(c.chofer) || '—'}</td><td class="td-horario">${c.tel ? fmtTel(c.tel) : '—'}</td><td class="td-horario" style="color:var(--text-muted);font-weight:600;text-align:center">${x(c.horarioProg)}</td><td style="text-align:center"><input type="checkbox" disabled ${c.colecta ? 'checked' : ''}></td><td><input class="inp-inline" id="ec-horario-${c.rowIndex}" value="${x(c.horario)}" placeholder="HH:MM"></td><td class="td-acciones"><button class="btn-save" data-action="guardar-colecta" data-row="${c.rowIndex}">✓</button><button class="btn-cancel" data-action="cancelar-colecta" data-row="${c.rowIndex}">✕</button></td>`;
+    return `<td class="td-cliente">${x(c.nombre)}</td><td class="td-chofer">${x(c.chofer) || '—'}</td><td class="td-horario">${c.tel ? fmtTel(c.tel) : '<span style="color:var(--text-muted)">—</span>'}</td><td style="text-align:center"><input type="checkbox" disabled ${c.colecta ? 'checked' : ''}></td><td><input class="inp-inline" id="ec-horario-${c.rowIndex}" value="${x(c.horario)}" placeholder="HH:MM"></td><td class="td-acciones"><button class="btn-save" data-action="guardar-colecta" data-row="${c.rowIndex}">✓</button><button class="btn-cancel" data-action="cancelar-colecta" data-row="${c.rowIndex}">✕</button></td>`;
   },
 
   recorridos(zonas) {
@@ -788,7 +776,7 @@ const Render = {
     if (!tbody) return;
     tbody.innerHTML = '';
     if (!lista.length) {
-      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">
         <div style="padding:40px; text-align:center;">
           <div style="font-size:2rem; margin-bottom:10px;">📂</div>
           <div style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; color:#fff;">No hay conductores registrados</div>
@@ -802,25 +790,55 @@ const Render = {
   _dbRow(c) {
     const tr = document.createElement('tr');
     tr.id = `db-row-${c.id}`;
+    // Determinar condición: del campo o por regla de negocio (ID > 300 = SUPLENTE)
+    const condicion = c.condicion || (parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) > 300 ? 'SUPLENTE' : 'TITULAR');
+    const condBadge = condicion === 'SUPLENTE'
+      ? `<span style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">SUPLENTE</span>`
+      : `<span style="background:#10b98122;color:#10b981;border:1px solid #10b98155;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">TITULAR</span>`;
     tr.innerHTML = `
-      <td style="color:var(--text-muted); font-family:monospace;">${c.choferIdAt || '—'}</td>
-      <td style="font-weight:700; color:var(--accent);">${c.nombre} ${c.activo ? '' : '<small>(Inactivo)</small>'}</td>
-      <td>${c.tel || '—'}</td>
-      <td>${c.dni || '—'}</td>
-      <td>${c.zona || '—'}</td>
-      <td>${c.direccion || '—'}</td>
-      <td style="font-size:0.7rem;"><span class="meta-chip">${c.condicion || 'TITULAR'}</span></td>
-      <td>
-        <div style="display:flex; gap:6px;">
-          <button class="btn-edit-con" onclick="Handlers.editarRegistro('${c.id}')" title="Editar">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-          </button>
-          <button class="btn-delete-con" onclick="Handlers.borrarRegistro('${c.id}')" title="Eliminar">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-          </button>
-        </div>
+      <td style="text-align: center; vertical-align: middle;">
+        <input type="text" class="rec-inp" value="${x(c.choferIdAt)}" data-action="update-id-inline" data-id="${c.id}" style="width:75px; margin: 0 auto; display: block; text-align:center; font-weight:700; color:var(--accent); background:rgba(0,0,0,0.08); border-radius:4px; border:1px solid transparent;">
       </td>
-    `;
+      <td class="td-cliente">${x(c.nombre)}</td>
+      <td class="td-horario">${x(c.tel)}</td>
+      <td>${x(c.dni)}</td>
+      <td>${x(c.zona)}</td>
+      <td class="td-dir">${x(c.direccion)}</td>
+      <td>${x(c.ingreso)}</td>
+      <td style="text-align:center">${condBadge}</td>
+      <td style="text-align:center">
+        <input type="checkbox" ${c.activo ? 'checked' : ''}
+               data-action="toggle-activo-db" data-id="${c.id}">
+      </td>
+      <td class="td-acciones">
+        <button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button>
+        <button class="btn-del"  data-action="eliminar-db" data-id="${c.id}">🗑</button>
+      </td>`;
+    return tr;
+  },
+
+  _dbEditRow(c) {
+    const tr = document.createElement('tr');
+    tr.id = `db-edit-row-${c.id}`;
+    tr.innerHTML = `
+      <td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}"></td>
+      <td><input class="inp-inline" id="db-in-nom-${c.id}" value="${x(c.nombre)}"></td>
+      <td><input class="inp-inline" id="db-in-tel-${c.id}" value="${x(c.tel)}"></td>
+      <td><input class="inp-inline" id="db-in-dni-${c.id}" value="${x(c.dni)}"></td>
+      <td><input class="inp-inline" id="db-in-zon-${c.id}" value="${x(c.zona)}"></td>
+      <td><input class="inp-inline" id="db-in-dir-${c.id}" value="${x(c.direccion)}"></td>
+      <td><input class="inp-inline" id="db-in-ing-${c.id}" value="${x(c.ingreso)}"></td>
+      <td style="text-align:center">
+        <select class="inp-inline" id="db-in-cond-${c.id}">
+          <option value="TITULAR" ${c.condicion !== 'SUPLENTE' ? 'selected' : ''}>TITULAR</option>
+          <option value="SUPLENTE" ${c.condicion === 'SUPLENTE' ? 'selected' : ''}>SUPLENTE</option>
+        </select>
+      </td>
+      <td style="text-align:center"><input type="checkbox" id="db-in-act-${c.id}" ${c.activo ? 'checked' : ''}></td>
+      <td class="td-acciones">
+        <button class="btn-save" data-action="guardar-db" data-id="${c.id}">✓</button>
+        <button class="btn-cancel" data-action="cancelar-db" data-id="${c.id}">✕</button>
+      </td>`;
     return tr;
   },
 
@@ -965,9 +983,27 @@ const Handlers = {
       '¿Eliminar Cliente?',
       `¿Borrar a <strong>${c.nombre}</strong> de la lista?`,
       () => {
+        // En Memoria
         S.clientes = S.clientes.filter(k => k.rowIndex !== rowIndex);
         S.clientesFiltrados = S.clientesFiltrados.filter(k => k.rowIndex !== rowIndex);
         S.despachoDirty = true;
+
+        // Storage: Removemos de nuevos locales por si se creó manual
+        const locales = Storage.loadLocalNuevosClientes(S.hojaClientes);
+        const filtradosLocal = locales.filter(k => k.rowIndex !== rowIndex);
+        Storage.setJSON(`col_local_clientes_${S.hojaClientes}`, filtradosLocal);
+
+        // Storage: Guardamos en Overrides como fila eliminada/nula para que no se rehidrate
+        const overrides = Storage.loadOverridesClientes(S.hojaClientes);
+        overrides[rowIndex] = { eliminado: true };
+        Storage.setJSON(`col_cli_ovr_${S.hojaClientes}`, overrides);
+
+        // Storage: Forzamos la actualización completa de la lista filtrada en la base cruda
+        const db = LocalDB.getDB();
+        const dbKey = S.hojaClientes.toUpperCase().includes('SABADO') ? 'clientes_SABADO' : 'clientes_SEMANA';
+        db[dbKey] = S.clientes;
+        LocalDB.saveDB(db);
+
         Render.clientes(S.clientesFiltrados);
         Render.toast('🗑️ Cliente eliminado', 'ok');
       }
@@ -990,13 +1026,13 @@ const Handlers = {
 
   agregarCliente() {
     const m = document.getElementById('modal-nuevo-cliente');
-    if (m) m.style.display = 'flex';
+    if (m) m.style.setProperty('display', 'flex', 'important');
     document.getElementById('ncli-nom').focus();
   },
 
   cerrarModalNuevoCliente() {
     const m = document.getElementById('modal-nuevo-cliente');
-    if (m) m.style.display = 'none';
+    if (m) m.style.removeProperty('display');
     ['ncli-nom', 'ncli-hor', 'ncli-dir'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   },
 
@@ -1073,10 +1109,17 @@ const Handlers = {
 
   solicitarLimpiarHoy() {
     Handlers.solicitarConfirmacion(
-      '¿Limpiar Hoy?',
-      'Se borrarán todos los recorridos y asignaciones de la vista actual.',
+      '¿Limpiar Colectas?',
+      'Se desmarcarán todas las colectas de hoy y se borrarán sus horarios de llegada.',
       () => Handlers.ejecutarLimpiarHoy()
     );
+  },
+
+  ejecutarLimpiarHoy() {
+    Storage.clearColectas();
+    Handlers.cargarColectas();
+    Handlers.cerrarConfirm();
+    Render.toast('✓ Colectas desmarcadas', 'ok');
   },
 
   solicitarConfirmacion(titulo, msg, onConfirm) {
@@ -1098,16 +1141,10 @@ const Handlers = {
 
   cerrarConfirm() {
     const modal = document.getElementById('modal-confirm');
-    if (modal) modal.style.setProperty('display', 'none', 'important');
+    if (modal) modal.style.removeProperty('display');
   },
 
-  ejecutarLimpiarHoy() {
-    S.recorridos = [];
-    Storage.setJSON(`col_rec_ovr_${S.hojaRecorridos}`, {});
-    Render.recorridos([]);
-    Handlers.cerrarConfirm();
-    Render.toast('Día limpiado con éxito', 'success');
-  },
+
 
   async renderRecorridos() {
     Render.skeletonRecorridos();
@@ -1127,7 +1164,7 @@ const Handlers = {
     const inp = document.getElementById('nl-inp');
     if (!modal || !inp) return;
     inp.value = '';
-    modal.style.display = 'flex';
+    modal.style.setProperty('display', 'flex', 'important');
     setTimeout(() => inp.focus(), 100);
   },
 
@@ -1254,109 +1291,245 @@ const Handlers = {
     try { await Store.cargarDB(); Render.database(S.dbChoferesFiltrados); } catch (err) { Render.toast(err.message, 'err'); }
   },
 
+  cambiarTabDB(tab) {
+    S.filtroDB = tab;
+    document.querySelectorAll('#tab-group-db .tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    Handlers.filtrarDB();
+  },
+
   filtrarDB() {
     const q = document.getElementById('search-db-choferes').value.toLowerCase();
-    S.dbChoferesFiltrados = q ? S.dbChoferes.filter(c => c.nombre.toLowerCase().includes(q) || (c.dni && c.dni.includes(q))) : [...S.dbChoferes];
-    Render.db(S.dbChoferesFiltrados);
+
+    const filtrados = S.dbChoferes.filter(c => {
+      // Extraer números del ID para evaluar si es suplente (> 300)
+      const numId = parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) || 0;
+      const esSuplente = c.condicion === 'SUPLENTE' || numId > 300;
+
+      // Filtrar por pestaña
+      const tabActual = S.filtroDB || 'titulares';
+      if (tabActual === 'suplentes' && !esSuplente) return false;
+      if (tabActual === 'titulares' && esSuplente) return false;
+
+      // Filtrar por texto
+      if (q && !c.nombre.toLowerCase().includes(q) && !(c.dni && String(c.dni).includes(q))) return false;
+
+      return true;
+    });
+
+    S.dbChoferesFiltrados = filtrados;
+    Render.database(S.dbChoferesFiltrados);
+  },
+
+  actualizarIdInline(rowId, nuevoId) {
+    const c = S.dbChoferes.find(k => k.id === rowId);
+    if (!c) return;
+
+    c.choferIdAt = nuevoId.trim().toUpperCase();
+
+    // Actualizar localmente si fue un chofer creado offline
+    const locales = Storage.loadLocalNuevosChoferes();
+    const idxLocal = locales.findIndex(x => x.id === rowId);
+    if (idxLocal !== -1) {
+      locales[idxLocal].choferIdAt = c.choferIdAt;
+      Storage.setJSON('col_local_db_choferes', locales);
+    }
+
+    // Refrescar la vista (hará que salte de pestaña automáticamente si pasa los 300)
+    Handlers.filtrarDB();
+    Render.toast('✓ ID actualizado', 'ok');
+
+    // Sincronizar con Google Sheets en segundo plano
+    if (S.config.appsUrl) {
+      const sid = S.config.sheetIdRec || S.config.sheetId;
+      API.ping(`${S.config.appsUrl}?action=updateRecorridoFila&sheet=${enc('BASE DE DATOS CHOFERES')}&row=${rowId}&docid=${sid}&field=db_id&value=${enc(c.choferIdAt)}`);
+    }
   },
 
   abrirModalConductor() {
-    Handlers.cerrarModalNuevoChofer();
+    Handlers.cerrarModalNuevoRegistro();
     const modal = document.getElementById('modal-nuevo-chofer');
     if (modal) modal.style.setProperty('display', 'flex', 'important');
   },
 
-  editarRegistro(rowId) {
-    S._editId = rowId;
-    const c = S.dbChoferes.find(k => String(k.id) === String(rowId));
+  editarRegistro(idInterno) {
+    const c = S.dbChoferesBDFull.find(x => String(x.id) === String(idInterno));
     if (!c) return;
+    S._editId = c.id; // Guardamos el ID interno para la edición
 
     // Actualizar título de modal
     const title = document.getElementById('modal-chofer-title');
     if (title) title.textContent = 'Editar Registro';
 
-    // Poblar campos
+    // Poblar campos de texto
     const fill = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     fill('nc-idat', c.choferIdAt);
     fill('nc-nom', c.nombre);
     fill('nc-cel', c.tel);
     fill('nc-dni', c.dni);
-    fill('nc-zon', c.zona);
     fill('nc-dir', c.direccion);
-    fill('nc-cond', c.condicion || 'TITULAR');
 
-    // Mostrar modal
+    // Poblar multi-select de zona
+    const selZona = document.getElementById('nc-zon');
+    if (selZona && c.zona) {
+      const zonas = c.zona.split(/,\s*/);
+      Array.from(selZona.options).forEach(opt => { opt.selected = zonas.includes(opt.value); });
+    }
+
+    // Convertir DD/MM/YYYY a YYYY-MM-DD para el input type="date"
+    const elIng = document.getElementById('nc-ing');
+    if (elIng) {
+      if (c.ingreso && c.ingreso !== '—') {
+        const parts = c.ingreso.split('/');
+        if (parts.length === 3) elIng.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        else elIng.value = '';
+      } else { elIng.value = ''; }
+    }
+
+    // Mostrar modal con prioridad y título de edición
     const modal = document.getElementById('modal-nuevo-chofer');
-    if (modal) modal.style.setProperty('display', 'flex', 'important');
+    if (modal) {
+      modal.style.setProperty('display', 'flex', 'important');
+      const title = document.getElementById('modal-chofer-title');
+      if (title) title.textContent = '✎ Editar Registro';
+    }
   },
 
-  async confirmarNuevoChofer() {
-    const idat = document.getElementById('nc-idat').value.trim();
-    const nom = document.getElementById('nc-nom').value.trim();
-    const tel = document.getElementById('nc-cel').value.trim();
-    if (!idat || !nom || !tel) { Render.toast('ID, Nombre y Celular son obligatorios', 'err'); return; }
+  agregarDB() {
+    const modal = document.getElementById('modal-nuevo-chofer');
+    if (modal) {
+      modal.style.setProperty('display', 'flex', 'important');
+      setTimeout(() => {
+        const inputId = document.getElementById('nc-idat');
+        if (inputId) inputId.focus();
+      }, 100);
+    } else {
+      Render.toast('❌ Error: Modal no encontrado', 'err');
+    }
+  },
 
-    // VALIDACIÓN DE DUPLICADOS EN DB (Blindada con String)
+  abrirNuevoRegistro() {
+    const modal = document.getElementById('modal-nuevo-chofer');
+    if (modal) {
+      modal.style.setProperty('display', 'flex', 'important');
+      setTimeout(() => {
+        const inputId = document.getElementById('nc-idat');
+        if (inputId) inputId.focus();
+      }, 100);
+    } else {
+      Render.toast('❌ Error: Modal no encontrado', 'err');
+    }
+  },
+
+  confirmarNuevoChofer() {
+    // Esta función delega a la función maestra global
+    window.guardarRegistroGlobal();
+  },
+
+  _confirmarNuevoChofer_legacy() {
+    const idat = document.getElementById('nc-idat')?.value.trim();
+    const nom = document.getElementById('nc-nom')?.value.trim();
+    const tel = document.getElementById('nc-cel')?.value.trim();
+    if (!idat || !nom || !tel) { Render.toast('ID, Conductor y Celular son obligatorios', 'err'); return; }
+
     const idatUpper = String(idat).toUpperCase();
     const editIdStr = String(S._editId || '');
-    const existe = S.dbChoferesBDFull.find(c => String(c.id).toUpperCase() === idatUpper && String(c.id) !== editIdStr);
+    const existe = S.dbChoferesBDFull.find(c => String(c.choferIdAt).toUpperCase() === idatUpper && String(c.id) !== editIdStr);
 
     if (existe) {
-      Render.errorModal('ID Duplicado', `El ID <strong>${idat}</strong> ya está asignado al conductor <strong>${existe.nombre}</strong>.`);
+      Render.errorModal('ID Duplicado', `El ID ya está asignado a ${existe.nombre}.`);
       return;
     }
 
     try {
+      // Formatear Fecha
+      const rawDate = document.getElementById('nc-ing')?.value || '';
+      let fechaFormateada = '—';
+      if (rawDate) {
+        const [y, m, d] = rawDate.split('-');
+        fechaFormateada = `${d}/${m}/${y}`;
+      }
+
+      // Leer zona desde multi-select
+      const selZona = document.getElementById('nc-zon');
+      let zonaVal = '';
+      if (selZona && selZona.multiple) {
+        zonaVal = Array.from(selZona.selectedOptions).map(opt => opt.value).join(', ');
+      } else if (selZona) {
+        zonaVal = selZona.value.trim();
+      }
+
+      // Condición: regla de negocio automática + manual
+      let condicionVal;
+      const selCond = document.getElementById('nc-cond');
+      if (selCond && selCond.value) {
+        condicionVal = selCond.value;
+      } else {
+        condicionVal = parseInt(idatUpper, 10) > 300 ? 'SUPLENTE' : 'TITULAR';
+      }
+
       const data = {
-        choferIdAt: idat, nombre: nom, tel: tel,
-        dni: document.getElementById('nc-dni').value.trim(),
-        zona: document.getElementById('nc-zon').value.trim(),
-        direccion: document.getElementById('nc-dir').value.trim(),
-        condicion: document.getElementById('nc-cond').value || 'TITULAR'
+        choferIdAt: idatUpper,
+        nombre: nom,
+        tel: tel,
+        dni: document.getElementById('nc-dni')?.value.trim() || '',
+        zona: zonaVal || 'Sin Zona',
+        direccion: document.getElementById('nc-dir')?.value.trim() || '',
+        ingreso: fechaFormateada,
+        condicion: condicionVal
       };
 
       if (S._editId) {
-        // MODO EDICIÓN
-        const idx = S.dbChoferesBDFull.findIndex(x => String(x.id) === String(S._editId));
-        if (idx !== -1) {
-          Object.assign(S.dbChoferesBDFull[idx], data);
-          S.dbChoferesBDFull[idx].id = idat;
-          S.dbChoferesBDFull[idx].choferIdAt = idat;
-        }
+        const idx1 = S.dbChoferesBDFull.findIndex(x => String(x.id) === String(S._editId));
+        if (idx1 !== -1) { Object.assign(S.dbChoferesBDFull[idx1], data); S.dbChoferesBDFull[idx1].choferIdAt = idatUpper; }
+
+        const idx2 = S.dbChoferes.findIndex(x => String(x.id) === String(S._editId));
+        if (idx2 !== -1) { Object.assign(S.dbChoferes[idx2], data); S.dbChoferes[idx2].choferIdAt = idatUpper; }
       } else {
-        // MODO NUEVO
-        const nuevo = { ...data, id: idat, activo: true };
+        // LA LÍNEA MÁGICA QUE FALTABA PARA QUE APAREZCA EN LA LISTA
+        const newId = Date.now();
+        const nuevo = { ...data, id: newId, choferIdAt: idatUpper, activo: true };
         S.dbChoferesBDFull.unshift(nuevo);
+        S.dbChoferes.unshift(nuevo);
       }
 
-      const db = LocalDB.getDB();
-      db.conductores = S.dbChoferesBDFull;
-      LocalDB.saveDB(db);
+      LocalDB.saveChoferes(S.dbChoferesBDFull);
       Handlers.filtrarDB();
+
       Handlers.cerrarModalNuevoChofer();
-      Render.toast(S._editId ? '✓ Cambios guardados' : '✓ Conductor guardado', 'ok');
+      Render.toast(S._editId ? '✓ Cambios guardados' : '✓ Registro guardado', 'ok');
 
-      // Sync (Async)
-      Render.syncIndicator(true);
-      API.saveChofer({ ...data, id: idat }, S.config).then(() => {
-        Render.toast('✓ Sincronizado', 'ok');
-      }).catch(e => {
-        console.error("Sync error:", e);
-        Render.toast('Guardado local (Sin Sync)', 'info');
-      }).finally(() => Render.syncIndicator(false));
-
+      if (S.config && S.config.appsUrl) {
+        Render.syncIndicator(true);
+        API.saveChofer({ ...data, id: idatUpper }, S.config).then(() => {
+          Render.toast('✓ Sincronizado', 'ok');
+        }).catch(e => console.error("Sync error:", e)).finally(() => Render.syncIndicator(false));
+      }
       S._editId = null;
     } catch (err) { Render.toast('Error al guardar: ' + err.message, 'err'); }
   },
 
   cerrarModalNuevoChofer() {
     const m = document.getElementById('modal-nuevo-chofer');
-    if (m) m.style.display = 'none';
-    ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dni', 'nc-zon', 'nc-dir', 'nc-cond'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    if (m) m.style.setProperty('display', 'none', 'important');
 
-    // Resetear título a default
+    // Limpia campos de texto
+    ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dni', 'nc-dir', 'nc-ing'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+
+    // Limpia multi-select de zona (deseleccionar todas las opciones)
+    const selZona = document.getElementById('nc-zon');
+    if (selZona) Array.from(selZona.options).forEach(opt => opt.selected = false);
+
+    // Resetear condición a TITULAR
+    const selCond = document.getElementById('nc-cond');
+    if (selCond) selCond.value = 'TITULAR';
+
     const title = document.getElementById('modal-chofer-title');
-    if (title) title.textContent = '+ Nuevo Conductor';
+    if (title) title.textContent = '+ Nuevo Registro';
     S._editId = null;
   },
 
@@ -1371,9 +1544,8 @@ const Handlers = {
         S.dbChoferesBDFull = S.dbChoferesBDFull.filter(x => String(x.id) !== String(rowId));
         S.dbChoferes = S.dbChoferes.filter(x => String(x.id) !== String(rowId));
 
-        const db = LocalDB.getDB();
-        db.conductores = S.dbChoferesBDFull;
-        LocalDB.saveDB(db);
+        // Persistencia directa según instrucción
+        LocalDB.saveChoferes(S.dbChoferesBDFull);
 
         Handlers.filtrarDB();
         Render.toast('🗑️ Registro eliminado', 'ok');
@@ -1386,21 +1558,47 @@ const Handlers = {
   mostrarConfirmarHistorial() {
     if (!S.colectas.filter(c => c.colecta).length) return Render.toast('⚠ No hay colectas marcadas hoy', 'info');
     const m = document.getElementById('modal-historial-confirm');
-    if (m) m.style.display = 'flex';
+    if (m) m.style.setProperty('display', 'flex', 'important');
   },
 
-  guardarHistorial() {
-    const hoy = S.colectas.filter(c => c.colecta);
-    if (!hoy.length) return;
+  confirmarGuardarHistorial() {
+    // Obtenemos solo las colectas que tienen el check marcado (true)
+    const hoy = S.colectas.filter(c => c.colecta === true);
+
+    if (!hoy.length) {
+      const m = document.getElementById('modal-historial-confirm');
+      if (m) m.style.setProperty('display', 'none', 'important');
+      Render.toast('⚠ No hay colectas marcadas para guardar', 'info');
+      return;
+    }
+
     const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const records = hoy.map(c => {
-      const cliData = S.clientes.find(cli => (cli.nombre || '').trim().toUpperCase() === (c.nombre || '').trim().toUpperCase()) || {};
-      return { fecha, cliente: c.nombre, direccion: cliData.direccion || '—', chofer: c.chofer || '—', celular: c.tel || '—', horario: c.horario || '—' };
+      const searchName = (c.nombre || '').trim().toUpperCase();
+      const cliData = S.clientes.find(cli => (cli.nombre || '').trim().toUpperCase() === searchName) || {};
+
+      return {
+        fecha,
+        cliente: c.nombre,
+        direccion: cliData.direccion || '—',
+        chofer: c.chofer || '—',
+        celular: c.tel || '—',
+        horario: c.horario || '—'
+      };
     });
-    Storage.saveToHistorial(records); Storage.clearColectas(); Handlers.cargarColectas();
+
+    // Guardamos en LocalStorage
+    Storage.saveToHistorial(records);
+
+    // Limpiamos los checks de hoy (reset visual)
+    Storage.clearColectas();
+    Handlers.cargarColectas();
+
+    // Cerramos modal y avisamos
     const m = document.getElementById('modal-historial-confirm');
-    if (m) m.style.display = 'none';
-    Render.toast(`✓ Registros guardados localmente`, 'ok');
+    if (m) m.style.removeProperty('display');
+
+    Render.toast(`✓ ${records.length} colectas guardadas en el Historial`, 'ok');
   },
 
   limpiarHistorial() {
@@ -1555,17 +1753,24 @@ document.addEventListener('click', e => {
   if (a === 'editar-cliente') Handlers.editarCliente(r); if (a === 'guardar-cliente') Handlers.guardarCliente(r); if (a === 'cancelar-cliente') Handlers.cancelarCliente(r); if (a === 'eliminar-cliente') Handlers.eliminarCliente(r);
   if (a === 'editar-colecta') Handlers.editarColecta(r); if (a === 'guardar-colecta') Handlers.guardarColecta(r); if (a === 'cancelar-colecta') Handlers.cancelarColecta(r);
   if (a === 'eliminar-rec-fila') Handlers.eliminarRecFila(r); if (a === 'eliminar-zona') Handlers.eliminarZona(n, JSON.parse(el.dataset.ids || '[]'));
-  if (a === 'editar-db') Handlers.editarDB(id); if (a === 'guardar-db') Handlers.guardarDB(id); if (a === 'cancelar-db') Handlers.cancelarDB(id); if (a === 'eliminar-db') Handlers.eliminarDB(id);
+  if (a === 'editar-db') Handlers.editarRegistro(id);
+  if (a === 'eliminar-db') Handlers.borrarRegistro(id);
   if (a === 'nuevo-conductor') window.agregarFilaDB();
+  if (a === 'abrir-nuevo-registro') Handlers.abrirNuevoRegistro();
   if (a === 'nueva-localidad') Handlers.abrirModalLocalidad();
+  if (a === 'guardar-nuevo-registro') window.guardarRegistroGlobal();
 });
 
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-action]'); if (!el) return;
   const a = el.dataset.action; const r = parseInt(el.dataset.row); const id = parseInt(el.dataset.id);
-  if (a === 'marcar-llegada') Handlers.marcarLlegada(r, el.checked); if (a === 'toggle-activo-db') Handlers.toggleActivoDB(id, el.checked);
-  if (a === 'actualizar-tel-inline') Handlers.actualizarTelInline(r, el.value); if (a === 'chofer-select') Handlers.onChoferSelect(el, r);
-  if (a === 'id-select') Handlers.onIdSelect(el, r); if (a === 'guardar-rec-field') Handlers.guardarRecField(r, el.dataset.field, el.value);
+  if (a === 'marcar-llegada') Handlers.marcarLlegada(r, el.checked);
+  if (a === 'toggle-activo-db') Handlers.toggleActivoDB(id, el.checked);
+  if (a === 'actualizar-tel-inline') Handlers.actualizarTelInline(r, el.value);
+  if (a === 'chofer-select') Handlers.onChoferSelect(el, r);
+  if (a === 'id-select') Handlers.onIdSelect(el, r);
+  if (a === 'guardar-rec-field') Handlers.guardarRecField(r, el.dataset.field, el.value);
+  if (a === 'update-id-inline') Handlers.actualizarIdInline(id, el.value);
 });
 
 document.addEventListener('input', e => {
@@ -1584,7 +1789,7 @@ window.confirmarNuevaLocalidad = () => Handlers.confirmarNuevaLocalidad();
 window.cerrarModalNuevaLocalidad = () => {
   const m = document.getElementById('modal-nueva-localidad');
   if (!m) return;
-  m.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.98)' }], { duration: 200, easing: 'ease-in' }).onfinish = () => m.style.display = 'none';
+  m.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.98)' }], { duration: 200, easing: 'ease-in' }).onfinish = () => m.style.removeProperty('display');
 };
 window.abrirSeguridad = () => {
   if (S.dbAutenticado) {
@@ -1594,7 +1799,8 @@ window.abrirSeguridad = () => {
       if (await checkAdminPass(pass)) {
         S.dbAutenticado = true;
         irA('db-choferes');
-        document.getElementById('btn-new-db').style.display = 'inline-block';
+        const btnNuevo = document.getElementById('btn-nuevo-conductor');
+        if (btnNuevo) btnNuevo.style.display = 'inline-block';
         Handlers.cargarDB();
         Render.toast('🔐 Acceso Concedido', 'ok');
       } else {
@@ -1621,43 +1827,168 @@ window.cerrarAdmin = () => irA('despacho');
 window.abrirModalLocalidad = () => Handlers.abrirModalLocalidad();
 window.agregarChofer = () => Handlers.agregarCliente();
 window.agregarFilaDB = () => {
-  const inputId = document.getElementById('nc-idat');
   const modal = document.getElementById('modal-nuevo-chofer');
-  if (!modal) return;
+  if (modal) {
+    modal.style.setProperty('display', 'flex', 'important');
+    setTimeout(() => {
+      const inputId = document.getElementById('nc-idat');
+      if (inputId) inputId.focus();
+    }, 100);
+  } else {
+    alert("❌ Error: No se encontró la ventana del modal en el HTML.");
+  }
+};
+window.Handlers = Handlers;
+window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer();
 
-  if (inputId) {
-    // Generar ID CH001 secuencial buscando el máximo en la flota actual (usando choferIdAt)
-    const lista = S.dbChoferesBDFull || [];
-    const maxId = lista.reduce((max, c) => {
-      const idStr = String(c.choferIdAt || '');
-      const num = parseInt(idStr.replace(/CH/gi, '') || 0);
-      return !isNaN(num) && num > max ? num : max;
-    }, 0);
-    const nextId = `CH${(maxId + 1).toString().padStart(3, '0')}`;
-    inputId.value = nextId;
+// ─── GLOBAL EXPORTS ──────────────────────────────────────────────
+window.cerrarModalNuevoConductor = function () {
+  const m = document.getElementById('modal-nuevo-chofer');
+  if (m) m.style.removeProperty('display');
+  // Limpiar campos de texto
+  ['nc-idat', 'nc-nom', 'nc-cel', 'nc-dir', 'nc-ing'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // Limpiar select múltiple de zona
+  const selZona = document.getElementById('nc-zon');
+  if (selZona) Array.from(selZona.options).forEach(opt => opt.selected = false);
+  // Resetear condición a TITULAR
+  const selCond = document.getElementById('nc-cond');
+  if (selCond) selCond.value = 'TITULAR';
+  // Resetear título del modal
+  const title = document.getElementById('modal-chofer-title');
+  if (title) title.textContent = '+ Nuevo Conductor';
+  S._editId = null;
+};
+
+window.cerrarModalNuevoRegistro = window.cerrarModalNuevoConductor;
+window.cerrarModalNuevoChofer = window.cerrarModalNuevoConductor;
+
+window.abrirModalNuevoConductor = function () {
+  window.cerrarModalNuevoConductor(); // Limpiar primero
+  const m = document.getElementById('modal-nuevo-chofer');
+  if (m) m.style.setProperty('display', 'flex', 'important');
+  setTimeout(() => {
+    const inputId = document.getElementById('nc-idat');
+    if (inputId) inputId.focus();
+  }, 100);
+};
+
+// ─── FUNCIÓN MAESTRA DE GUARDADO (ÚNICA FUENTE DE VERDAD) ────────
+window.guardarRegistroGlobal = function () {
+  // 1. Capturar valores del formulario
+  const idInput = document.getElementById('nc-idat')?.value.trim();
+  const nom = document.getElementById('nc-nom')?.value.trim();
+  const tel = document.getElementById('nc-cel')?.value.trim();
+  const dni = document.getElementById('nc-dni')?.value.trim() || '';
+  const dir = document.getElementById('nc-dir')?.value.trim() || '';
+  const rawDate = document.getElementById('nc-ing')?.value;
+
+  // Capturar selección múltiple de zona
+  const selZona = document.getElementById('nc-zon');
+  let zona = '';
+  if (selZona && selZona.multiple) {
+    zona = Array.from(selZona.selectedOptions).map(opt => opt.value).join(', ');
+  } else if (selZona) {
+    zona = selZona.value.trim();
   }
 
-  modal.style.display = 'flex';
-  // Fade-in effect logic if needed (optional since display flex is binary)
-  modal.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out' });
+  // 2. Validaciones básicas
+  if (!idInput || !nom || !tel) {
+    Render.toast('ID, Conductor y Celular son obligatorios', 'err');
+    return;
+  }
+  if (isNaN(idInput)) {
+    Render.toast('El ID debe ser un número', 'err');
+    return;
+  }
+
+  // 3. Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
+  let fechaFormateada = '—';
+  if (rawDate) {
+    const [y, m, d] = rawDate.split('-');
+    fechaFormateada = `${d}/${m}/${y}`;
+  }
+
+  const idatUpper = idInput;
+  const editIdStr = S._editId ? String(S._editId) : null;
+
+  // 4. Validar duplicados (excluir el registro en edición)
+  const existe = S.dbChoferesBDFull.find(c =>
+    String(c.choferIdAt) === idatUpper && String(c.id) !== editIdStr
+  );
+  if (existe) {
+    Render.errorModal('ID Duplicado', `El ID ${idatUpper} ya pertenece a <strong>${existe.nombre}</strong>.`);
+    return;
+  }
+
+  try {
+    // 5. Regla de negocio: ID > 300 → SUPLENTE, si no → TITULAR
+    //    La condición del select tiene prioridad, pero si no hay select la calculamos
+    let condicion;
+    const selCond = document.getElementById('nc-cond');
+    if (selCond && selCond.value) {
+      condicion = selCond.value;
+    } else {
+      condicion = parseInt(idatUpper, 10) > 300 ? 'SUPLENTE' : 'TITULAR';
+    }
+
+    const data = {
+      choferIdAt: idatUpper,
+      nombre: nom,
+      tel: tel,
+      dni: dni,
+      zona: zona || 'Sin Zona',
+      direccion: dir,
+      ingreso: fechaFormateada,
+      condicion: condicion,
+    };
+
+    if (S._editId) {
+      // ── MODO EDICIÓN ──
+      const idx1 = S.dbChoferesBDFull.findIndex(x => String(x.id) === editIdStr);
+      if (idx1 !== -1) Object.assign(S.dbChoferesBDFull[idx1], data);
+      const idx2 = S.dbChoferes.findIndex(x => String(x.id) === editIdStr);
+      if (idx2 !== -1) Object.assign(S.dbChoferes[idx2], data);
+    } else {
+      // ── MODO NUEVO ──
+      const newId = Date.now();
+      const nuevo = { ...data, id: newId, activo: true };
+      S.dbChoferesBDFull.unshift(nuevo);
+      S.dbChoferes.unshift(nuevo);
+    }
+
+    // 6. Persistencia y refresco visual
+    LocalDB.saveChoferes(S.dbChoferesBDFull);
+    Handlers.filtrarDB(); // Clasifica automáticamente en Titular/Suplente
+
+    // 7. Cierre limpio del modal
+    const wasEditing = !!S._editId;
+    window.cerrarModalNuevoConductor(); // También hace S._editId = null
+    Render.toast(wasEditing ? '✓ Cambios guardados' : '✓ Conductor registrado correctamente', 'ok');
+
+    // 8. Sincronización en la nube (no bloquea)
+    if (S.config?.appsUrl) {
+      Render.syncIndicator(true);
+      API.saveChofer({ ...data, id: idatUpper }, S.config)
+        .then(() => Render.toast('✓ Sincronizado con Sheets', 'ok'))
+        .catch(e => console.error('Sync error:', e))
+        .finally(() => Render.syncIndicator(false));
+    }
+  } catch (err) {
+    Render.toast('Error crítico: ' + err.message, 'err');
+    console.error(err);
+  }
 };
-window.confirmarNuevoChofer = () => Handlers.confirmarNuevoChofer();
-window.cerrarModalNuevoChofer = () => Handlers.cerrarModalNuevoChofer();
-window.cerrarModalNuevoCliente = () => Handlers.cerrarModalNuevoCliente(); window.confirmarNuevoCliente = () => Handlers.confirmarNuevoCliente();
-window.recargarPagina = () => irA(S.pagina); window.toggleMarcarTodos = () => Handlers.toggleMarcarTodos(); window.limpiarColectas = () => Handlers.limpiarColectas(); window.limpiarHistorial = () => Handlers.limpiarHistorial();
 
+// Alias para compatibilidad con código anterior
+Handlers.confirmarNuevoChofer = window.guardarRegistroGlobal;
+window.confirmarNuevoChofer = window.guardarRegistroGlobal;
 
-// ─── INIT ────────────────────────────────────────────────────────
-async function iniciar() {
-  await initAdminHash();
+// ─── INICIALIZACIÓN ──────────────────────────────────────────────
+(function init() {
   const cfg = Storage.loadConfig();
-  // Pre-llenamos los campos de config con los valores actuales
-  const fillCfg = () => {
-    ['inp-sheet-id', 'inp-api-key', 'inp-apps-url', 'inp-sid-rec'].forEach((id, i) => {
-      const el = document.getElementById(id);
-      if (el) el.value = [cfg.sheetId, cfg.apiKey, cfg.appsUrl, cfg.sheetIdRec][i] || '';
-    });
-  };
   S.config = cfg;
 
   S.hojaDespacho = Storage.loadHojaDespacho();
@@ -1665,61 +1996,49 @@ async function iniciar() {
   S.hojaRecorridos = Storage.loadHojaRec();
   S.enviados = Storage.loadEnviados(S.hojaDespacho);
 
-  const theme = Storage.loadTheme(); document.documentElement.setAttribute('data-theme', theme);
-  const btn = document.getElementById('btn-theme'); if (btn) btn.innerHTML = theme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro';
+  const theme = Storage.loadTheme();
+  document.documentElement.setAttribute('data-theme', theme);
+  const btnTheme = document.getElementById('btn-theme');
+  if (btnTheme) btnTheme.innerHTML = theme === 'light' ? '🌙 Modo Oscuro' : '☀️ Modo Claro';
 
-  document.getElementById('sidebar-nav').style.display = 'flex'; document.getElementById('btn-menu').style.display = 'flex'; document.getElementById('btn-reload').style.display = 'block';
+  // Mostrar controles de navegación
+  const sidebarNav = document.getElementById('sidebar-nav');
+  if (sidebarNav) sidebarNav.style.display = 'flex';
+  const btnMenu = document.getElementById('btn-menu');
+  if (btnMenu) btnMenu.style.display = 'flex';
+  const btnReload = document.getElementById('btn-reload');
+  if (btnReload) btnReload.style.display = 'block';
 
-  // Solo hidratamos desde cache local inicialmente
+  // Hidratar desde cache local inicialmente
   const db = LocalDB.getDB();
   S.dbChoferesBDFull = db.conductores || [];
+  S.dbChoferes = [...S.dbChoferesBDFull];
   S.choferesBDFull = S.dbChoferesBDFull;
   S.telMap = Object.fromEntries(S.dbChoferesBDFull.map(c => [c.nombre, c.tel]));
 
-  // LANDING PAGE: DIRECTO A RECORRIDOS
+  // Landing page en Recorridos
   irA('recorridos');
   S.seccionActual = 'recorridos';
-}
+})();
 
 // ─── EJECUCIÓN INICIAL ──────────────────────────────────────────
-// Bloqueo de scroll inmediato
 document.body.style.overflow = 'hidden';
 
-// ─── GLOBAL MODAL LISTENERS ──────────────────────────────────────
+// ─── GLOBAL MODAL LISTENERS (ESC) ────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    const modals = [
-      { id: 'modal-nuevo-chofer', close: () => Handlers.cerrarModalNuevoChofer() },
-      { id: 'modal-nuevo-cliente', close: () => Handlers.cerrarModalNuevoCliente() },
-      { id: 'modal-confirm', close: () => Handlers.cerrarConfirm() },
-      { id: 'modal-admin-pass', close: () => Handlers.cerrarAdminModal() },
-      { id: 'modal-nueva-localidad', close: () => window.cerrarModalNuevaLocalidad() },
-      { id: 'modal-error-integrity', close: () => { const el = document.getElementById('modal-error-integrity'); if (el) el.style.display = 'none'; } },
-      { id: 'modal-historial-confirm', close: () => { const el = document.getElementById('modal-historial-confirm'); if (el) el.style.display = 'none'; } }
-    ];
-
-    modals.forEach(m => {
-      const el = document.getElementById(m.id);
-      if (el && el.style.display !== 'none') {
-        m.close();
-      }
-    });
-  }
+  if (e.key !== 'Escape') return;
+  const modals = [
+    'modal-nuevo-chofer',
+    'modal-nuevo-cliente',
+    'modal-nueva-localidad',
+    'modal-historial-confirm',
+    'modal-error-integrity',
+  ];
+  modals.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.style.display !== 'none') el.style.removeProperty('display');
+  });
 });
 
-document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) {
-    const id = e.target.id;
-    if (id === 'modal-nuevo-chofer') Handlers.cerrarModalNuevoChofer();
-    else if (id === 'modal-nuevo-cliente') Handlers.cerrarModalNuevoCliente();
-    else if (id === 'modal-confirm') Handlers.cerrarConfirm();
-    else if (id === 'modal-admin-pass') Handlers.cerrarAdminModal();
-    else if (id === 'modal-nueva-localidad') window.cerrarModalNuevaLocalidad();
-    else if (id === 'modal-error-integrity') e.target.style.display = 'none';
-    else if (id === 'modal-historial-confirm') e.target.style.display = 'none';
-  }
-});
-
-// Iniciar procesos
-iniciar();
+// ─── DISPARO DEL SPLASH (SIEMPRE) ───────────────────────────────
 hideSplashScreen();

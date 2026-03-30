@@ -98,17 +98,16 @@
         <div class="modal-card">
             <div class="modal-header">
                 <h3 id="modal-chofer-title">+ Nuevo Conductor</h3>
-                <button onclick="cerrarModalNuevoChofer()" class="btn-close">✕</button>
+                <button onclick="window.cerrarModalNuevoConductor()" class="btn-close">✕</button>
             </div>
-
             <div class="modal-body">
                 <div class="modal-grid-2">
                     <div class="field">
-                        <label>ID</label>
-                        <input type="text" id="nc-idat" placeholder="CH001" required>
+                        <label>ID (NÚMERO)</label>
+                        <input type="number" id="nc-idat" placeholder="Ej: 105" required>
                     </div>
                     <div class="field">
-                        <label>NOMBRE</label>
+                        <label>NOMBRE CONDUCTOR</label>
                         <input type="text" id="nc-nom" placeholder="Apellido, Nombre" required>
                     </div>
                     <div class="field">
@@ -117,30 +116,39 @@
                     </div>
                     <div class="field">
                         <label>DNI</label>
-                        <input type="number" id="nc-dni" placeholder="xxxxxxxx">
+                        <input type="number" id="nc-dni" placeholder="Sin puntos">
                     </div>
                     <div class="field">
                         <label>ZONA PREFERENCIAL</label>
-                        <input type="text" id="nc-zon" placeholder="Ej: ZONA NORTE / AMBA">
+                        <select id="nc-zon" multiple style="min-height:90px">
+                            <option value="ZONA OESTE">ZONA OESTE</option>
+                            <option value="CABA">CABA</option>
+                            <option value="ZONA SUR">ZONA SUR</option>
+                            <option value="ZONA NORTE">ZONA NORTE</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>DIRECCIÓN</label>
+                        <input type="text" id="nc-dir" placeholder="Calle Nº, Localidad, Provincia">
+                    </div>
+                    <div class="field">
+                        <label>FECHA INGRESO</label>
+                        <input type="date" id="nc-ing">
                     </div>
                     <div class="field">
                         <label>CONDICIÓN</label>
                         <select id="nc-cond">
-                            <option value="TITULAR" selected>TITULAR</option>
-                            <option value="SEMITITULAR">SEMITITULAR</option>
+                            <option value="TITULAR">TITULAR</option>
                             <option value="SUPLENTE">SUPLENTE</option>
                         </select>
-                    </div>
-                    <div class="field field-full">
-                        <label>DIRECCIÓN</label>
-                        <input type="text" id="nc-dir" placeholder="Calle Nº, Localidad, Provincia">
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button onclick="cerrarModalNuevoChofer()" class="btn-outline">Cancelar</button>
-                    <button id="btn-save-chofer" onclick="confirmarNuevoChofer()" class="btn-primary btn-pill">✔️
-                        Guardar Conductor</button>
+                    <button onclick="cerrarModalNuevoRegistro()" class="btn-cancel"
+                        style="flex:1;padding:10px">Cancelar</button>
+                    <button onclick="window.guardarRegistroGlobal()" class="btn-save"
+                        style="flex:2;padding:10px;font-size:0.82rem">✓ Guardar Registro</button>
                 </div>
             </div>
         </div>
@@ -314,12 +322,11 @@
         </div>
         <div class="clientes-table-wrap">
             <table class="clientes-table">
-                <thead>
+                <thead style="font-weight: 800; text-transform: uppercase;">
                     <tr>
                         <th>CLIENTE</th>
                         <th>CHOFER</th>
                         <th>CELULAR</th>
-                        <th style="width:80px;text-align:center">PROG.</th>
                         <th style="width:80px;text-align:center">COLEC.</th>
                         <th style="width:100px;text-align:center">LLEGADA</th>
                         <th></th>
@@ -367,35 +374,45 @@
 
     <!-- ── PÁGINA: BASE DE DATOS ──────────────────── -->
     <div class="page" id="page-db-choferes">
-        <div class="recorridos-header">
-            <h2>📂 Base de Datos de Choferes</h2>
-            <div class="rec-actions">
-                <button id="btn-new-db" class="btn-pill btn-accent" onclick="Handlers.abrirModalConductor()">+ Nuevo
-                    Conductor</button>
-                <button class="btn-outline" onclick="irA('despacho')">Cerrar</button>
+        <div class="recorridos-header" style="justify-content: flex-start; gap: 20px;">
+            <h2 style="margin: 0;">📂 Base de Datos</h2>
+            <div class="tab-group" id="tab-group-db" style="margin-left: 20px;">
+                <button class="tab-btn active" data-tab="titulares"
+                    onclick="Handlers.cambiarTabDB('titulares')">TITULARES</button>
+                <button class="tab-btn" data-tab="suplentes"
+                    onclick="Handlers.cambiarTabDB('suplentes')">SUPLENTES</button>
+            </div>
+            <div class="rec-actions" style="margin-left: auto;">
+                <button id="btn-nuevo-conductor" class="btn-sm btn-accent" onclick="window.abrirModalNuevoConductor()"
+                    style="display:inline-block">+ Nuevo Conductor</button>
+                <button class="btn-sm" onclick="irA('despacho')">Cerrar</button>
             </div>
         </div>
+
         <div class="search-row">
             <input type="text" id="search-db-choferes" placeholder="Buscar chofer o DNI..."
                 oninput="Handlers.filtrarDB()">
         </div>
+
         <div class="clientes-table-wrap">
             <table class="db-table">
                 <thead>
                     <tr>
-                        <th style="width:60px">ID</th>
+                        <th>ID</th>
                         <th>CONDUCTOR</th>
                         <th>CELULAR</th>
                         <th>DNI</th>
-                        <th>ZONA PREF.</th>
+                        <th>ZONA PREFERENCIAL</th>
                         <th>DIRECCIÓN</th>
+                        <th>FECHA INGRESO</th>
                         <th>CONDICIÓN</th>
-                        <th style="width:80px">ACCIONES</th>
+                        <th>ACTIVO</th>
+                        <th>ACCIONES</th>
                     </tr>
                 </thead>
                 <tbody id="tbody-db">
                     <tr>
-                        <td colspan="8" class="empty-state">Iniciá sesión para ver datos.</td>
+                        <td colspan="10" class="empty-state">Iniciá sesión para ver datos.</td>
                     </tr>
                 </tbody>
             </table>
@@ -418,7 +435,7 @@
                     Se guardarán los clientes marcados hoy y se limpiará la lista actual.
                 </p>
                 <div style="display:flex;gap:10px">
-                    <button onclick="Handlers.guardarHistorial()" class="btn-primary"
+                    <button onclick="Handlers.confirmarGuardarHistorial()" class="btn-primary"
                         style="flex:2;background:#3498db;border-color:#3498db">Sí, Guardar</button>
                     <button onclick="document.getElementById('modal-historial-confirm').style.display='none'"
                         class="btn-cancel" style="flex:1">No</button>

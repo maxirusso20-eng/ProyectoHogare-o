@@ -16,7 +16,7 @@
 
 .splash-content {
   text-align: center;
-  animation: splashFadeIn 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: splashFadeIn 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   will-change: transform, opacity;
 }
 
@@ -2926,4 +2926,149 @@ button.btn-accent:hover {
   margin: 0 auto !important;
   display: block !important;
   text-align: center !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   REPARACIONES MODO CLARO (Menú y Modales)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .btn-menu,
+[data-theme="light"] .btn-menu svg,
+[data-theme="light"] .btn-menu path {
+  color: #0f172a !important;
+  fill: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.2) !important;
+}
+
+[data-theme="light"] .btn-menu:hover {
+  background: rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .modal-card,
+[data-theme="light"] #modal-confirm .modal-card,
+[data-theme="light"] .modal-admin {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-theme="light"] .modal-header {
+  background: #f1f5f9 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .modal-body,
+[data-theme="light"] .modal-body-admin,
+[data-theme="light"] .modal-card p,
+[data-theme="light"] .modal-card h2,
+[data-theme="light"] .modal-card h3,
+[data-theme="light"] .modal-card h4,
+[data-theme="light"] .field label,
+[data-theme="light"] #confirm-title,
+[data-theme="light"] #confirm-msg {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .admin-hint {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .modal-card input,
+[data-theme="light"] .modal-card select,
+[data-theme="light"] #inp-admin-pass {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .modal-card input:focus,
+[data-theme="light"] .modal-card select:focus,
+[data-theme="light"] #inp-admin-pass:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+[data-theme="light"] .btn-close {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .btn-close:hover {
+  color: #ef4444 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   REPARACIONES MODO CLARO: RECORRIDOS, TABS Y BUSCADORES
+   ════════════════════════════════════════════════════════════════ */
+
+/* 1. Encabezados de tabla en Recorridos (Más oscuros y legibles) */
+[data-theme="light"] .rec-table th {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+  background: #e2e8f0 !important;
+}
+
+/* 2. Pestañas SEMANA / SÁBADO (Fondo claro y texto oscuro) */
+[data-theme="light"] .tab-group {
+  background: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] .tab-btn {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .tab-btn.active {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* 3. Buscadores en general (Fondo blanco y texto negro) */
+[data-theme="light"] #search-despacho,
+[data-theme="light"] #search-clientes,
+[data-theme="light"] #search-colectas,
+[data-theme="light"] #search-db-choferes {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* Color del texto "Buscar..." temporal en los buscadores */
+[data-theme="light"] #search-despacho::placeholder,
+[data-theme="light"] #search-clientes::placeholder,
+[data-theme="light"] #search-colectas::placeholder,
+[data-theme="light"] #search-db-choferes::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   FORZAR NEGRITA Y COLOR EN ENCABEZADOS DE CLIENTES/COLECTAS
+   ════════════════════════════════════════════════════════════════ */
+.clientes-table th {
+  font-weight: 800 !important;
+  color: var(--text) !important;
+  font-size: 0.65rem !important;
+}
+
+[data-theme="light"] .clientes-table th {
+  color: #0f172a !important;
+  background: #e2e8f0 !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   REPARACIONES MODO CLARO: INPUTS DE RECORRIDOS (TEXTO Y CURSOR)
+   ════════════════════════════════════════════════════════════════ */
+[data-theme="light"] .rec-inp {
+  color: #0f172a !important;
+  /* Fuerza el texto oscuro */
+  caret-color: #0f172a !important;
+  /* Fuerza el cursor de texto (|) oscuro */
+  font-weight: 800 !important;
+  /* Fuente bien en negrita */
+}
+
+/* Mantener legibilidad si el input se pinta de rojo (> 40) en Modo Claro */
+[data-theme="light"] .rec-inp[style*="background"] {
+  color: #5a1f1f !important;
+  caret-color: #5a1f1f !important;
+  font-weight: 900 !important;
 }
