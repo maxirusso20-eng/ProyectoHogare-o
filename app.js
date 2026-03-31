@@ -433,6 +433,7 @@ const API = {
         if (ovr.zona_manual !== undefined) r[6] = ovr.zona_manual;
         if (ovr.paquetes !== undefined) r.paquetes = ovr.paquetes;
         if (ovr.paquetesFuera !== undefined) r.paquetesFuera = ovr.paquetesFuera;
+        if (ovr.entregados !== undefined) r.entregados = ovr.entregados;
       }
       const colB = r[1]?.toString().trim() || '';
       const colC = r[2]?.toString().trim() || '';
@@ -452,7 +453,7 @@ const API = {
       zonasMap[zonaFinal].filas.push({
         id: i + 1, localidad: colB, idChofer: colC, nombreChofer: colD,
         colecta: colE, colectan: colF,
-        paquetes: r.paquetes || '', paquetesFuera: r.paquetesFuera || ''
+        paquetes: r.paquetes || '', paquetesFuera: r.paquetesFuera || '', entregados: r.entregados || ''
       });
     }
     return Object.values(zonasMap);
@@ -594,8 +595,31 @@ const Render = {
   historialRecorridos(lista) {
     const tb = document.getElementById('tbody-historial-recorridos');
     if (!tb) return;
-    if (!lista || lista.length === 0) { tb.innerHTML = '<tr><td colspan="6" class="empty-state">No hay registros guardados.</td></tr>'; return; }
-    tb.innerHTML = lista.map(c => `<tr><td>${x(c.fecha)}</td><td>${x(c.zona)}</td><td>${x(c.localidad)}</td><td>${x(c.chofer)}</td><td style="text-align:center">${x(c.paquetes)}</td><td style="text-align:center">${x(c.paquetesFuera)}</td></tr>`).join('');
+    if (!lista || lista.length === 0) { tb.innerHTML = '<tr><td colspan="7" class="empty-state">No hay registros guardados.</td></tr>'; return; }
+    tb.innerHTML = lista.map(c => `<tr><td>${x(c.fecha)}</td><td>${x(c.zona)}</td><td>${x(c.localidad)}</td><td>${x(c.chofer)}</td><td style="text-align:center">${x(c.paquetes)}</td><td style="text-align:center">${x(c.paquetesFuera)}</td><td style="text-align:center; font-weight:700; color:var(--accent);">${x(c.entregados)}</td><td style="text-align:center; font-weight:700;">${x(c.porcentaje)}</td></tr>`).join('');
+  },
+
+  rankings(lista) {
+    const tb = document.getElementById('tbody-rankings');
+    if (!tb) return;
+    if (!lista || lista.length === 0) {
+      tb.innerHTML = '<tr><td colspan="5" class="empty-state">No hay datos suficientes este mes.</td></tr>';
+      return;
+    }
+    tb.innerHTML = lista.map((c, i) => {
+      let medalla = i + 1;
+      if (i === 0) medalla = '🥇';
+      if (i === 1) medalla = '🥈';
+      if (i === 2) medalla = '🥉';
+      const color = c.pct >= 90 ? '#10b981' : c.pct >= 70 ? '#f59e0b' : '#ef4444';
+      return `<tr>
+        <td style="text-align:center; font-size:1.2rem;">${medalla}</td>
+        <td style="font-weight:700; font-family:'Plus Jakarta Sans',sans-serif;">${x(c.chofer)}</td>
+        <td style="text-align:center; color:var(--text-muted);">${c.asignados}</td>
+        <td style="text-align:center; font-weight:600;">${c.entregados}</td>
+        <td style="text-align:center; font-weight:800; color:${color}; font-size:1.1rem;">${c.pct}%</td>
+      </tr>`;
+    }).join('');
   },
 
   skeletonDespacho() {
@@ -763,9 +787,22 @@ const Render = {
     zonas.forEach(z => cont.appendChild(Render._zonaBlock(z)));
     initDragDrop(cont);
   },
+  actualizarPorcentaje(rowId) {
+    const paq = parseInt(document.querySelector(`input[data-row="${rowId}"][data-field="paquetes"]`)?.value) || 0;
+    const ext = parseInt(document.querySelector(`input[data-row="${rowId}"][data-field="paquetesFuera"]`)?.value) || 0;
+    const ent = parseInt(document.querySelector(`input[data-row="${rowId}"][data-field="entregados"]`)?.value) || 0;
+    const pctEl = document.getElementById(`pct-${rowId}`);
+    if (!pctEl) return;
+    const total = paq + ext;
+    if (total === 0) { pctEl.textContent = '-'; pctEl.style.color = 'var(--text-muted)'; return; }
+    const pct = Math.round((ent / total) * 100);
+    pctEl.textContent = `${pct}%`;
+    pctEl.style.color = pct >= 90 ? '#10b981' : pct >= 70 ? '#f59e0b' : '#ef4444';
+  },
+
   _zonaBlock(z) {
     const div = document.createElement('div'); div.className = 'zona-block'; div.dataset.zonaid = z.id;
-    div.innerHTML = `<div class="zona-title-row"><input class="zona-name-input" value="${x(z.nombre)}" readonly><button class="btn-del-zona" data-action="eliminar-zona" data-nombre="${x(z.nombre)}" data-ids="${x(JSON.stringify(z.filas.map(f => f.id)))}">🗑️ Borrar zona</button></div><table class="rec-table"><thead><tr><th></th><th>LOCALIDAD</th><th>ID</th><th>CHOFER</th><th>PAQUETE</th><th>POR FUERA</th><th></th></tr></thead><tbody class="zona-tbody" data-zona="${x(z.nombre)}">${(z.filas || []).map(f => Render._recorridoFila(f, z.nombre)).join('')}</tbody></table>`;
+    div.innerHTML = `<div class="zona-title-row"><input class="zona-name-input" value="${x(z.nombre)}" readonly><button class="btn-del-zona" data-action="eliminar-zona" data-nombre="${x(z.nombre)}" data-ids="${x(JSON.stringify(z.filas.map(f => f.id)))}">🗑️ Borrar zona</button></div><table class="rec-table"><thead><tr><th></th><th>LOCALIDAD</th><th>ID</th><th>CHOFER</th><th>PAQUETE</th><th>POR FUERA</th><th>ENTREGADOS</th><th>% DEL DÍA</th><th></th></tr></thead><tbody class="zona-tbody" data-zona="${x(z.nombre)}">${(z.filas || []).map(f => Render._recorridoFila(f, z.nombre)).join('')}</tbody></table>`;
     return div;
   },
   _recorridoFila(f, zonaNombre) {
@@ -775,14 +812,20 @@ const Render = {
     const clsPaq = (Number(f.paquetes || 0) > 40) ? ' over-limit' : '';
     const clsExt = (Number(f.paquetesFuera || 0) > 40) ? ' over-limit' : '';
 
+    const pN = Number(f.paquetes) || 0; const eN = Number(f.paquetesFuera) || 0; const enN = Number(f.entregados) || 0;
+    const tN = pN + eN; const pVal = tN > 0 ? Math.round((enN / tN) * 100) : null;
+    const pTxt = pVal !== null ? pVal + '%' : '-'; const pCol = pVal >= 90 ? '#10b981' : pVal >= 70 ? '#f59e0b' : pVal !== null ? '#ef4444' : 'var(--text-muted)';
+
     return `<tr data-rowid="${f.id}" draggable="true" id="rec-tr-${f.id}">
       <td><span class="drag-handle" title="Arrastrar">⠿</span></td>
       <td><input class="rec-inp" value="${x(f.localidad)}" placeholder="Localidad" data-action="guardar-rec-field" data-row="${f.id}" data-field="localidad"></td>
       <td><input class="rec-inp id-chofer" id="rec-id-${f.id}" value="${x(S.choferesBDFull.find(k => k.nombre === f.nombreChofer)?.choferIdAt || f.idChofer || '')}" placeholder="ID" data-action="id-select" data-row="${f.id}" style="text-align:center"></td>
       <td><span class="rec-nombre-display" id="rec-nom-${f.id}">${x(f.nombreChofer || '— Sin asignar —')}</span></td>
       
-      <td><input type="number" class="rec-inp num-inp${clsPaq}" value="${x(f.paquetes)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="paquetes" oninput="this.classList.toggle('over-limit', this.value > 40)"></td>
-      <td><input type="number" class="rec-inp num-inp${clsExt}" value="${x(f.paquetesFuera)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="paquetesFuera" oninput="this.classList.toggle('over-limit', this.value > 40)"></td>
+      <td><input type="number" class="rec-inp num-inp${clsPaq}" value="${x(f.paquetes)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="paquetes" oninput="this.classList.toggle('over-limit', this.value > 40); Render.actualizarPorcentaje('${f.id}')"></td>
+      <td><input type="number" class="rec-inp num-inp${clsExt}" value="${x(f.paquetesFuera)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="paquetesFuera" oninput="this.classList.toggle('over-limit', this.value > 40); Render.actualizarPorcentaje('${f.id}')"></td>
+      <td><input type="number" class="rec-inp num-inp" value="${x(f.entregados)}" placeholder="0" data-action="guardar-rec-field" data-row="${f.id}" data-field="entregados" style="color:var(--accent);" oninput="Render.actualizarPorcentaje('${f.id}')"></td>
+      <td style="text-align:center; vertical-align:middle; font-weight:800; color:${pCol};" id="pct-${f.id}">${pTxt}</td>
       
       <td><button class="btn-del-rec" onclick="Handlers.quitarChoferDeRecorrido('${x(zonaNombre)}', '${f.id}')" title="Eliminar fila">${trashIcon}</button></td>
     </tr>`;
@@ -903,30 +946,119 @@ const Render = {
 
 // ─── HANDLERS ────────────────────────────────────────────────────
 const Handlers = {
+  buscarEnMapa() {
+    const input = document.getElementById('map-input-search');
+    if (!input || !input.value.trim()) return;
+
+    // Obtener el valor y limpiarlo
+    const direccion = input.value.trim();
+    // Codificar para la URL (convierte espacios en %20, etc.)
+    const query = encodeURIComponent(direccion);
+
+    const iframe = document.getElementById('map-iframe');
+    if (iframe) {
+      // Actualizar el atributo src del iframe de Google Maps
+      iframe.src = `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+      Render.toast('📍 Buscando dirección...', 'info');
+    }
+  },
   solicitarGuardarRecorrido() {
     Handlers.solicitarConfirmacion('Guardar Recorrido', '¿Archivar el recorrido actual en el historial?', async () => {
       Handlers.confirmarGuardarRecorrido();
     });
   },
   confirmarGuardarRecorrido() {
-    const now = new Date().toLocaleString();
+    // Aseguramos formato DD/MM/YYYY para compatibilidad con el Ranking
+    const fechaFormat = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const records = [];
-    S.recorridos.forEach(z => {
-      z.filas.forEach(f => {
-        if (f.localidad && f.nombreChofer) {
-          records.push({ fecha: now, zona: z.nombre, localidad: f.localidad, chofer: f.nombreChofer, paquetes: f.paquetes || '', paquetesFuera: f.paquetesFuera || '' });
-          f.paquetes = ''; f.paquetesFuera = '';
+
+    // Leemos directo del DOM para asegurar capturar lo que el usuario ve
+    document.querySelectorAll('.zona-tbody tr').forEach(tr => {
+      const rowId = tr.dataset.rowid;
+      if (!rowId) return;
+
+      const zonaNombre = tr.closest('.zona-tbody')?.dataset.zona || '';
+      const localidad = tr.querySelector(`input[data-field="localidad"]`)?.value || '';
+      const choferNode = document.getElementById(`rec-nom-${rowId}`);
+      const chofer = choferNode ? choferNode.textContent : '';
+
+      const paq = tr.querySelector(`input[data-field="paquetes"]`)?.value || '';
+      const ext = tr.querySelector(`input[data-field="paquetesFuera"]`)?.value || '';
+      const ent = tr.querySelector(`input[data-field="entregados"]`)?.value || '';
+      const pct = document.getElementById(`pct-${rowId}`)?.textContent || '-';
+
+      // Validar: Tiene localidad, tiene chofer asignado y hay al menos un número cargado
+      if (localidad && chofer && chofer !== '— Sin asignar —') {
+        if (paq !== '' || ext !== '' || ent !== '') {
+          records.push({ fecha: fechaFormat, zona: zonaNombre, localidad, chofer, paquetes: paq, paquetesFuera: ext, entregados: ent, porcentaje: pct });
         }
-      });
+      }
     });
+
+    if (records.length === 0) {
+      Render.toast('⚠️ No hay números cargados para guardar', 'info');
+      return;
+    }
+
     Storage.saveToHistorialRec(records);
-    Render.recorridos(S.recorridos);
-    Render.toast('🗑️ Recorrido guardado y reseteado', 'ok');
+
+    // Limpiar pantalla y memoria (overrides)
+    document.querySelectorAll('.zona-tbody tr').forEach(tr => {
+      const rowId = tr.dataset.rowid;
+      ['paquetes', 'paquetesFuera', 'entregados'].forEach(field => {
+        const inp = tr.querySelector(`input[data-field="${field}"]`);
+        if (inp) inp.value = '';
+        Storage.saveRecOverride(S.hojaRecorridos, rowId, field, '');
+      });
+      Render.actualizarPorcentaje(rowId);
+    });
+
+    Render.toast('💾 Recorrido guardado y reseteado', 'ok');
   },
   cargarHistorialRecorridos() {
     const data = Storage.loadHistorialRec();
     Render.historialRecorridos(data);
   },
+
+  cargarRankings() {
+    const historial = Storage.loadHistorialRec() || [];
+    const now = new Date();
+    // Obtener formato de mes y año (ej: "/03/" o "-03-")
+    const mesActual = String(now.getMonth() + 1).padStart(2, '0');
+
+    const statsPorChofer = {};
+
+    historial.forEach(r => {
+      const fechaStr = String(r.fecha || '');
+      // Filtrar para que solo sume lo de este mes
+      if (!fechaStr.includes(`/${mesActual}/`) && !fechaStr.includes(`-${mesActual}-`)) return;
+
+      const chofer = r.chofer;
+      if (!chofer || chofer === '— Sin asignar —') return;
+
+      if (!statsPorChofer[chofer]) {
+        statsPorChofer[chofer] = { chofer, asignados: 0, entregados: 0 };
+      }
+
+      const paq = parseInt(r.paquetes) || 0;
+      const ext = parseInt(r.paquetesFuera) || 0;
+      const ent = parseInt(r.entregados) || 0;
+
+      statsPorChofer[chofer].asignados += (paq + ext);
+      statsPorChofer[chofer].entregados += ent;
+    });
+
+    const ranking = Object.values(statsPorChofer).map(c => {
+      c.pct = c.asignados > 0 ? Math.round((c.entregados / c.asignados) * 100) : 0;
+      return c;
+    });
+
+    // Ordenar primero por %, luego por cantidad de entregados para desempatar
+    ranking.sort((a, b) => b.pct - a.pct || b.entregados - a.entregados);
+
+    Render.rankings(ranking);
+  },
+
   limpiarHistorialRec() {
     Handlers.abrirAdminModal(async (pass) => {
       if (await checkAdminPass(pass)) {
@@ -1838,8 +1970,8 @@ async function irA(pagina) {
     return;
   }
   window.toggleMenu(false); S.pagina = pagina; Storage.savePage(pagina);
-  document.querySelectorAll('.nav-tab').forEach((b, i) => b.classList.toggle('active', ['clientes', 'despacho', 'recorridos', 'colectas', 'historial', 'historial-recorridos', 'db-choferes'][i] === pagina));
-  ['despacho', 'clientes', 'recorridos', 'colectas', 'historial', 'historial-recorridos', 'db-choferes', 'admin'].forEach(p => { const el = document.getElementById(`page-${p}`); if (el) el.classList.toggle('active', p === pagina); });
+  document.querySelectorAll('.nav-tab').forEach((b, i) => b.classList.toggle('active', ['clientes', 'despacho', 'recorridos', 'colectas', 'historial', 'historial-recorridos', 'rankings', 'db-choferes'][i] === pagina));
+  ['despacho', 'clientes', 'recorridos', 'colectas', 'historial', 'historial-recorridos', 'rankings', 'db-choferes', 'admin'].forEach(p => { const el = document.getElementById(`page-${p}`); if (el) el.classList.toggle('active', p === pagina); });
 
   const tg = document.getElementById('tab-group');
   if (tg) { tg.style.display = pagina === 'despacho' ? 'flex' : 'none'; if (pagina === 'despacho') document.querySelectorAll('#tab-group .tab-btn').forEach((b, i) => b.classList.toggle('active', (i === 0 && S.hojaDespacho === 'DESPACHO_WHATSAPP') || (i === 1 && S.hojaDespacho === 'DESPACHO_WHATSAPP_SABADOS'))); }
@@ -1865,6 +1997,7 @@ async function irA(pagina) {
   if (pagina === 'historial') await Handlers.cargarHistorial();
   if (pagina === 'historial-recorridos') Handlers.cargarHistorialRecorridos();
   if (pagina === 'db-choferes' && S.dbAutenticado) await Handlers.cargarDB();
+  if (pagina === 'rankings') { Handlers.cargarRankings(); Render.setStatus('ok'); }
 }
 
 function cambiarHoja(nombre) { S.hojaDespacho = nombre; S.hojaClientes = nombre; Storage.saveHojaDespacho(nombre); Storage.saveHojaCli(nombre); S.choferes = []; S.enviados = Storage.loadEnviados(nombre); irA('despacho'); }
