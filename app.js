@@ -50,8 +50,8 @@ async function hideSplashScreen() {
   Store.syncEverything();
 
   setTimeout(() => {
-    // CRÍTICO: Redirigir a la hoja de rutas
-    window.irA('recorridos');
+    // CRÍTICO: Redirigir a la sección actual (soporte hash)
+    window.irA(S.pagina, false);
 
     // Iniciar desvanecimiento
     splash.classList.add('fade-out');
@@ -192,7 +192,7 @@ const Storage = {
   loadHistorialRec() { return Storage.getJSON('col_historial_recorridos', []); },
   saveToHistorialRec(records) {
     const hist = Storage.loadHistorialRec();
-    const updated = [...records, ...hist].slice(0, 500);
+    const updated = [...records, ...hist].slice(0, 5000);
     Storage.setJSON('col_historial_recorridos', updated);
   },
   clearHistorialRec() { Storage.remove('col_historial_recorridos'); },
@@ -871,10 +871,7 @@ const Render = {
       <td class="td-dir">${x(c.direccion)}</td>
       <td>${x(c.ingreso)}</td>
       <td style="text-align:center">${condBadge}</td>
-      <td style="text-align:center">
-        <input type="checkbox" ${c.activo ? 'checked' : ''}
-               data-action="toggle-activo-db" data-id="${c.id}">
-      </td>
+      <td style="text-align:center; font-weight:600; font-size:0.75rem; color:var(--text-muted);">${x(c.vehiculo || 'AUTO')}</td>
       <td class="td-acciones">
         <button class="btn-edit" data-action="editar-db" data-id="${c.id}">✏</button>
         <button class="btn-del"  data-action="eliminar-db" data-id="${c.id}">🗑</button>
@@ -894,12 +891,18 @@ const Render = {
       <td><input class="inp-inline" id="db-in-dir-${c.id}" value="${x(c.direccion)}"></td>
       <td><input class="inp-inline" id="db-in-ing-${c.id}" value="${x(c.ingreso)}"></td>
       <td style="text-align:center">
-        <select class="select-inline" id="db-in-cond-${c.id}" style="font-size:0.7rem; padding:2px;">
+        <select class="select-inline" id="db-in-cond-${c.id}" style="font-size:0.7rem; padding:2px; text-align:center; text-align-last:center;">
           <option value="TITULAR"${c.condicion === 'TITULAR' ? ' selected' : ''}>TITULAR</option>
           <option value="SUPLENTE"${c.condicion === 'SUPLENTE' ? ' selected' : ''}>SUPLENTE</option>
         </select>
       </td>
-      <td style="text-align:center"><input type="checkbox" id="db-in-act-${c.id}" ${c.activo ? 'checked' : ''}></td>
+      <td style="text-align:center">
+        <select class="select-inline" id="db-in-veh-${c.id}" style="font-size:0.7rem; padding:2px; text-align:center; text-align-last:center;">
+          <option value="AUTO"${c.vehiculo === 'AUTO' ? ' selected' : ''}>AUTO</option>
+          <option value="SUV"${c.vehiculo === 'SUV' ? ' selected' : ''}>SUV</option>
+          <option value="UTILITARIO"${c.vehiculo === 'UTILITARIO' ? ' selected' : ''}>UTILITARIO</option>
+        </select>
+      </td>
       <td class="td-acciones">
         <button class="btn-save" data-action="guardar-db" data-id="${c.id}">✓</button>
         <button class="btn-cancel" data-action="cancelar-db" data-id="${c.id}">✕</button>
@@ -1007,8 +1010,11 @@ const Handlers = {
       const rowId = tr.dataset.rowid;
       ['paquetes', 'paquetesFuera', 'entregados'].forEach(field => {
         const inp = tr.querySelector(`input[data-field="${field}"]`);
-        if (inp) inp.value = '';
-        Storage.saveRecOverride(S.hojaRecorridos, rowId, field, '');
+        if (inp) {
+          inp.value = '0'; // Forzar el valor base a 0
+          inp.classList.remove('over-limit'); // Limpiar el borde rojo si lo tuviera
+        }
+        Storage.saveRecOverride(S.hojaRecorridos, rowId, field, '0');
       });
       Render.actualizarPorcentaje(rowId);
     });
@@ -1057,6 +1063,78 @@ const Handlers = {
     ranking.sort((a, b) => b.pct - a.pct || b.entregados - a.entregados);
 
     Render.rankings(ranking);
+  },
+
+  cerrarMesPDF() {
+    const tablaRankings = document.getElementById('tbody-rankings');
+    if (!tablaRankings || tablaRankings.innerText.includes('No hay datos')) {
+      return Render.toast('No hay datos suficientes para exportar', 'err');
+    }
+
+    const mesActual = new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }).toUpperCase();
+
+    // 1. Generar Reporte Visual Limpio para PDF
+    const vent = window.open('', '_blank');
+    let html = `
+      <html>
+      <head>
+        <title>Reporte Logística - ${mesActual}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 30px; color: #000; background: #fff; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+          th, td { border: 1px solid #ccc; padding: 12px; text-align: left; }
+          th { background: #f4f4f4; font-weight: bold; text-transform: uppercase; }
+          td { color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>REPORTE DE EFECTIVIDAD MENSUAL</h2>
+          <p>MES: <strong>${mesActual}</strong></p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>PUESTO</th><th>CHOFER</th><th>PAQ. ASIGNADOS</th><th>ENTREGADOS</th><th>% EFECTIVIDAD</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tablaRankings.innerHTML}
+          </tbody>
+        </table>
+        <p style="margin-top: 30px; font-size: 12px; color: #666; text-align: center;">Generado por Logística Hogareño - ${new Date().toLocaleString('es-AR')}</p>
+      </body>
+      </html>
+    `;
+
+    vent.document.write(html);
+    vent.document.close();
+
+    // Esperar a que renderice y llamar al menú de impresión (Guardar como PDF)
+    setTimeout(() => {
+      vent.focus();
+      vent.print();
+
+      // 2. Después de imprimir, preguntar si dinamitamos los datos
+      setTimeout(() => {
+        Handlers.solicitarConfirmacion(
+          '¿Ejecutar Cierre de Mes?',
+          '¿Ya guardaste tu PDF? Si aceptas, se <strong>borrará todo el historial del mes y los números de la pantalla de Recorridos</strong> para empezar de cero.',
+          () => {
+            // Borramos el Historial profundo
+            Storage.clearHistorialRec();
+
+            // Borramos los números anclados en la pantalla de Recorridos (Semana y Sábado)
+            Storage.remove('col_rec_ovr_HOJA DE RECORRIDO');
+            Storage.remove('col_rec_ovr_HOJA DE RECORRIDOS SABADOS');
+
+            // Recargamos la app para que aplique visualmente
+            location.reload();
+          }
+        );
+      }, 500); // Pequeño delay después de cerrar la ventana de impresión
+    }, 250);
   },
 
   limpiarHistorialRec() {
@@ -1525,6 +1603,8 @@ const Handlers = {
     if (!c) return;
 
     c.choferIdAt = nuevoId.trim().toUpperCase();
+    const numIdValue = parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) || 0;
+    c.condicion = numIdValue > 300 ? 'SUPLENTE' : 'TITULAR';
 
     // Actualizar localmente si fue un chofer creado offline
     const locales = Storage.loadLocalNuevosChoferes();
@@ -1567,6 +1647,9 @@ const Handlers = {
     fill('nc-cel', c.tel);
     fill('nc-dni', c.dni);
     fill('nc-dir', c.direccion);
+
+    const selVeh = document.getElementById('nc-veh');
+    if (selVeh) selVeh.value = c.vehiculo || 'AUTO';
 
     // Poblar multi-select de zona
     const selZona = document.getElementById('nc-zon');
@@ -1837,12 +1920,26 @@ const Handlers = {
   },
 
   abrirModalCliente() {
+    // 1. Limpiar campos de texto
     ['ncli-nom', 'ncli-hor', 'ncli-dir'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+
+    // 2. Poblar dropdown de conductores con la base de datos actualizada
+    const sel = document.getElementById('ncli-cho');
+    if (sel) {
+      const conductores = [...S.dbChoferesBDFull].sort((a, b) => a.nombre.localeCompare(b.nombre));
+      sel.innerHTML = '<option value="">— sin asignar —</option>' +
+        conductores.map(c => `<option value="${x(c.nombre)}">${x(c.nombre)}</option>`).join('');
+    }
+
+    // 3. Mostrar el modal y hacer foco en el primer input
     const modal = document.getElementById('modal-nuevo-cliente');
-    if (modal) modal.style.setProperty('display', 'flex', 'important');
+    if (modal) {
+      modal.style.setProperty('display', 'flex', 'important');
+      setTimeout(() => document.getElementById('ncli-nom')?.focus(), 100);
+    }
   },
 
   guardarRegDB(id) {
@@ -1855,12 +1952,15 @@ const Handlers = {
     const zon = document.getElementById(`db-in-zon-${id}`)?.value.trim();
     const dir = document.getElementById(`db-in-dir-${id}`)?.value.trim();
     const ing = document.getElementById(`db-in-ing-${id}`)?.value.trim();
-    const cond = document.getElementById(`db-in-cond-${id}`)?.value;
-    const act = document.getElementById(`db-in-act-${id}`)?.checked;
+    let cond = document.getElementById(`db-in-cond-${id}`)?.value;
+    const veh = document.getElementById(`db-in-veh-${id}`)?.value || 'AUTO';
+
+    const numIdValue = parseInt(String(idat).replace(/\D/g, ''), 10) || 0;
+    if (numIdValue > 300) cond = 'SUPLENTE';
 
     if (!idat || !nom || !tel) return Render.toast('ID, Nombre y Celular obligatorios', 'err');
 
-    const data = { choferIdAt: idat, nombre: nom, tel, dni, zona: zon, direccion: dir, ingreso: ing, condicion: cond, activo: act };
+    const data = { choferIdAt: idat, nombre: nom, tel, dni, zona: zon, direccion: dir, ingreso: ing, condicion: cond, vehiculo: veh };
     Object.assign(c, data);
     const cFull = S.dbChoferesBDFull.find(x => x.id === id);
     if (cFull) Object.assign(cFull, data);
@@ -1952,7 +2052,7 @@ function initDragDrop(cont) {
 }
 
 // ─── NAVEGACIÓN Y CONFIG ─────────────────────────────────────────
-async function irA(pagina) {
+async function irA(pagina, pushHistory = true) {
   const protegidas = ['despacho', 'clientes', 'colectas', 'db-choferes', 'admin', 'historial-recorridos'];
   if (protegidas.includes(pagina) && !S.dbAutenticado) {
     window.toggleMenu(false);
@@ -1970,6 +2070,9 @@ async function irA(pagina) {
     return;
   }
   window.toggleMenu(false); S.pagina = pagina; Storage.savePage(pagina);
+  if (pushHistory) {
+    history.pushState({ pagina: pagina }, '', '#' + pagina);
+  }
   document.querySelectorAll('.nav-tab').forEach((b, i) => b.classList.toggle('active', ['clientes', 'despacho', 'recorridos', 'colectas', 'historial', 'historial-recorridos', 'rankings', 'db-choferes'][i] === pagina));
   ['despacho', 'clientes', 'recorridos', 'colectas', 'historial', 'historial-recorridos', 'rankings', 'db-choferes', 'admin'].forEach(p => { const el = document.getElementById(`page-${p}`); if (el) el.classList.toggle('active', p === pagina); });
 
@@ -2103,6 +2206,8 @@ window.cerrarModalNuevoConductor = function () {
   // Resetear condición a TITULAR
   const selCond = document.getElementById('nc-cond');
   if (selCond) selCond.value = 'TITULAR';
+  const selVeh = document.getElementById('nc-veh');
+  if (selVeh) selVeh.value = 'AUTO';
   // Resetear título del modal
   const title = document.getElementById('modal-chofer-title');
   if (title) title.textContent = '+ Nuevo Conductor';
@@ -2131,6 +2236,7 @@ window.guardarRegistroGlobal = function () {
   const dni = document.getElementById('nc-dni')?.value.trim() || '';
   const dir = document.getElementById('nc-dir')?.value.trim() || '';
   const rawDate = document.getElementById('nc-ing')?.value;
+  const veh = document.getElementById('nc-veh')?.value || 'AUTO';
 
   // Capturar selección múltiple de zona
   const selZona = document.getElementById('nc-zon');
@@ -2175,14 +2281,14 @@ window.guardarRegistroGlobal = function () {
   }
 
   try {
-    // 5. Regla de negocio: ID > 300 → SUPLENTE, si no → TITULAR
-    //    La condición del select tiene prioridad, pero si no hay select la calculamos
+    // 5. Regla de negocio estricta: ID > 300 → SUPLENTE (ignora el select)
+    const numIdValue = parseInt(String(idatUpper).replace(/\D/g, ''), 10) || 0;
     let condicion;
-    const selCond = document.getElementById('nc-cond');
-    if (selCond && selCond.value) {
-      condicion = selCond.value;
+    if (numIdValue > 300) {
+      condicion = 'SUPLENTE';
     } else {
-      condicion = parseInt(idatUpper, 10) > 300 ? 'SUPLENTE' : 'TITULAR';
+      const selCond = document.getElementById('nc-cond');
+      condicion = selCond && selCond.value ? selCond.value : 'TITULAR';
     }
 
     const data = {
@@ -2194,6 +2300,7 @@ window.guardarRegistroGlobal = function () {
       direccion: dir,
       ingreso: fechaFormateada,
       condicion: condicion,
+      vehiculo: veh
     };
 
     if (S._editId) {
@@ -2205,7 +2312,7 @@ window.guardarRegistroGlobal = function () {
     } else {
       // ── MODO NUEVO ──
       const newId = Date.now();
-      const nuevo = { ...data, id: newId, activo: true };
+      const nuevo = { ...data, id: newId };
       S.dbChoferesBDFull.unshift(nuevo);
       S.dbChoferes.unshift(nuevo);
     }
@@ -2268,10 +2375,21 @@ window.confirmarNuevoChofer = window.guardarRegistroGlobal;
   S.choferesBDFull = S.dbChoferesBDFull;
   S.telMap = Object.fromEntries(S.dbChoferesBDFull.map(c => [c.nombre, c.tel]));
 
-  // Landing page en Recorridos
-  irA('recorridos');
-  S.seccionActual = 'recorridos';
+  // Manejo de Landing Page con soporte para Hash URL
+  const hashInicial = window.location.hash.replace('#', '');
+  const paginaInicial = hashInicial ? hashInicial : 'recorridos';
+  irA(paginaInicial, true); // true para reemplazar/setear el estado inicial
+  S.seccionActual = paginaInicial;
 })();
+
+/* ── NAVEGACIÓN DEL NAVEGADOR (ATRÁS / ADELANTE) ── */
+window.addEventListener('popstate', (e) => {
+  // Si hay un estado guardado, vamos a esa página sin volver a pushear al historial
+  const destino = e.state && e.state.pagina ? e.state.pagina : (window.location.hash.replace('#', '') || 'recorridos');
+  if (typeof irA === 'function') {
+    irA(destino, false); // El 'false' evita un bucle infinito en el historial
+  }
+});
 
 // ─── EJECUCIÓN INICIAL ──────────────────────────────────────────
 document.body.style.overflow = 'hidden';
@@ -2297,5 +2415,20 @@ document.addEventListener('keydown', e => {
 document.addEventListener('mousedown', e => {
   if (e.target.classList.contains('modal-overlay')) {
     e.target.style.removeProperty('display');
+  }
+});
+
+/* ── UX: AUTO-BORRADO Y RESTAURACIÓN DE CEROS EN INPUTS NUMÉRICOS ── */
+document.addEventListener('focusin', (e) => {
+  if (e.target.classList.contains('num-inp') && e.target.value === '0') {
+    e.target.value = '';
+  }
+});
+
+document.addEventListener('focusout', (e) => {
+  if (e.target.classList.contains('num-inp') && e.target.value.trim() === '') {
+    e.target.value = '0';
+    // Disparamos el evento 'input' para que el estado interno y los cálculos reaccionen al cambio
+    e.target.dispatchEvent(new Event('input', { bubbles: true }));
   }
 });

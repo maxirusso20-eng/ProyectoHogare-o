@@ -5,7 +5,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: #000000;
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -39,6 +39,12 @@
   transition: opacity 0.8s ease-out !important;
   pointer-events: none !important;
   visibility: hidden !important;
+}
+
+/* Color dinámico para el texto del Splash */
+.splash-logo h1 {
+  color: var(--text) !important;
+  transition: color 0.3s ease;
 }
 
 /* ─── SKELETON LOADERS ────────────────────────────────────────── */
@@ -2523,11 +2529,6 @@ tr[draggable="true"].dragging {
   text-align: left;
 }
 
-.rec-table th:nth-child(5),
-.rec-table td:nth-child(5) {
-  width: 45px;
-  text-align: center;
-}
 
 .rec-inp {
   width: 100%;
@@ -2582,6 +2583,8 @@ tr[draggable="true"].dragging {
   border: none;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  flex: 1;
+  text-align: center !important;
 }
 
 h1,
@@ -2861,54 +2864,34 @@ button.btn-accent:hover {
   text-align: center;
 }
 
-/* Localidad (2) - ABSORBE EL RESTO */
+/* Localidad (2) */
 .rec-table th:nth-child(2),
-.rec-table td:nth-child(2) {
+.rec-table td:nth-child(2),
+.rec-table td:nth-child(2) .rec-inp {
   width: auto !important;
-  text-align: left;
+  text-align: center !important;
 }
 
 /* ID (3) */
 .rec-table th:nth-child(3),
-.rec-table td:nth-child(3) {
+.rec-table td:nth-child(3),
+.rec-table td:nth-child(3) .rec-inp {
   width: 60px !important;
   min-width: 60px !important;
-  text-align: center;
+  text-align: center !important;
 }
 
-/* Chofer (4) - Proporción generosa */
+/* Chofer (4) */
 .rec-table th:nth-child(4),
-.rec-table td:nth-child(4) {
-  width: 25% !important;
-  min-width: 150px !important;
-  text-align: left;
+.rec-table td:nth-child(4),
+.rec-table td:nth-child(4) .rec-nombre-display {
+  width: 18% !important;
+  min-width: 130px !important;
+  text-align: center !important;
+  display: block;
+  margin: 0 auto;
 }
 
-/* PAQUETE (5) - Ancho holgado para el nombre largo */
-.rec-table th:nth-child(5),
-.rec-table td:nth-child(5) {
-  width: 125px !important;
-  min-width: 125px !important;
-  max-width: 125px !important;
-  text-align: center;
-}
-
-/* POR FUERA (6) - Ancho holgado para el nombre largo */
-.rec-table th:nth-child(6),
-.rec-table td:nth-child(6) {
-  width: 125px !important;
-  min-width: 125px !important;
-  max-width: 125px !important;
-  text-align: center;
-}
-
-/* Eliminar (7) */
-.rec-table th:nth-child(7),
-.rec-table td:nth-child(7) {
-  width: 50px !important;
-  min-width: 50px !important;
-  text-align: center;
-}
 
 /* Asegurar que los inputs numéricos estén centrados y tengan el ancho Senior */
 .rec-inp.num-inp {
@@ -3014,11 +2997,12 @@ button.btn-accent:hover {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
 }
 
-/* 3. Buscadores en general (Fondo blanco y texto negro) */
+/* 3. Buscadores en general y Mapa (Fondo blanco y texto negro) */
 [data-theme="light"] #search-despacho,
 [data-theme="light"] #search-clientes,
 [data-theme="light"] #search-colectas,
-[data-theme="light"] #search-db-choferes {
+[data-theme="light"] #search-db-choferes,
+[data-theme="light"] #map-input-search {
   background: #ffffff !important;
   color: #0f172a !important;
   border: 1px solid #cbd5e1 !important;
@@ -3028,7 +3012,8 @@ button.btn-accent:hover {
 [data-theme="light"] #search-despacho::placeholder,
 [data-theme="light"] #search-clientes::placeholder,
 [data-theme="light"] #search-colectas::placeholder,
-[data-theme="light"] #search-db-choferes::placeholder {
+[data-theme="light"] #search-db-choferes::placeholder,
+[data-theme="light"] #map-input-search::placeholder {
   color: #94a3b8 !important;
 }
 
@@ -3095,23 +3080,19 @@ button.btn-accent:hover {
   border-bottom: 1px solid var(--border);
 }
 
+/* ── AJUSTE DE ALTURA DEL MAPA ── */
 .mapa-frame-container {
   width: 100%;
-  height: 400px;
+  height: 600px !important;
+  /* Estirado para abajo */
   background: #222;
   border-top: 1px solid var(--border);
 }
 
-@media (max-width: 1000px) {
-  .recorridos-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .mapa-panel {
-    position: relative;
-    top: 0;
-    margin-bottom: 20px;
-  }
+#map-iframe {
+  width: 100%;
+  height: 600px !important;
+  border: none;
 }
 
 /* PAQUETES (5), POR FUERA (6), ENTREGADOS (7), % DEL DÍA (8) */
@@ -3123,16 +3104,167 @@ button.btn-accent:hover {
 .rec-table td:nth-child(7),
 .rec-table th:nth-child(8),
 .rec-table td:nth-child(8) {
-  width: 85px !important;
-  min-width: 85px !important;
-  max-width: 85px !important;
+  width: 105px !important;
+  min-width: 105px !important;
+  max-width: 105px !important;
   text-align: center;
+  padding: 8px 8px !important;
+  white-space: nowrap !important;
 }
 
-/* Eliminar (9) - Desplazado al final */
+/* Eliminar (9) */
 .rec-table th:nth-child(9),
 .rec-table td:nth-child(9) {
   width: 50px !important;
   min-width: 50px !important;
+  max-width: 50px !important;
   text-align: center;
+  padding: 8px 0 !important;
+}
+
+/* Centrado de celdas específicas en Base de Datos */
+.db-table td:nth-child(8),
+.db-table td:nth-child(9),
+.db-table th:nth-child(8),
+.db-table th:nth-child(9) {
+  text-align: center !important;
+  vertical-align: middle;
+}
+
+/* Corregir que los selects dentro de la tabla no tengan márgenes raros */
+.db-table .select-inline {
+  margin: 0 auto;
+  display: block;
+  width: fit-content;
+  min-width: 90px;
+}
+
+/* ── DISEÑO SENIOR: ALINEACIONES UNIFICADAS ── */
+
+/* 1. Fondo continuo en la FILA completa del encabezado */
+.rec-table thead tr {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 2px solid var(--border) !important;
+}
+
+[data-theme="light"] .rec-table thead tr {
+  background: #e2e8f0 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+
+/* 2. Limpiar celdas y preparar padding */
+.rec-table th {
+  background: transparent !important;
+  border-bottom: none !important;
+  padding: 12px 8px !important;
+  vertical-align: middle !important;
+}
+
+/* 3. COLUMNA 2: LOCALIDAD (Todo a la izquierda) */
+.rec-table th:nth-child(2),
+.rec-table td:nth-child(2) {
+  width: auto !important;
+  text-align: left !important;
+  padding-left: 15px !important;
+}
+
+.rec-table td:nth-child(2) .rec-inp {
+  text-align: left !important;
+}
+
+/* 4. COLUMNA 3: ID (Todo centrado, un poco más ancho) */
+.rec-table th:nth-child(3),
+.rec-table td:nth-child(3) {
+  width: 85px !important;
+  min-width: 85px !important;
+  text-align: center !important;
+  padding-left: 15px !important;
+}
+
+.rec-table td:nth-child(3) .rec-inp {
+  text-align: center !important;
+  margin: 0 auto !important;
+}
+
+/* 5. COLUMNA 4: CHOFER (Encabezado Centro, Datos Izquierda) */
+.rec-table th:nth-child(4) {
+  display: table-cell !important;
+  text-align: center !important;
+  padding-left: 0 !important;
+  vertical-align: middle !important;
+}
+
+.rec-table td:nth-child(4),
+.rec-table td:nth-child(4) .rec-nombre-display {
+  width: 18% !important;
+  min-width: 130px !important;
+  text-align: left !important;
+  padding-left: 20px !important;
+  margin: 0 !important;
+}
+
+/* ── OPTIMIZACIÓN DE RENDIMIENTO (ANTI-LAG): MENÚ LATERAL ── */
+#sidebar {
+  background: var(--surface) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 2px 0 15px rgba(0, 0, 0, 0.3) !important;
+}
+
+#sidebar-overlay {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ── EXPANSIÓN DE LAYOUT SEGURO (SOLO DESKTOP) ── */
+#page-recorridos {
+  max-width: 98% !important;
+  /* Expande al máximo, pegando el mapa más a la izquierda */
+  margin: 0 auto;
+}
+
+@media (min-width: 1001px) {
+  .recorridos-layout {
+    grid-template-columns: 400px 1fr !important;
+    /* Mapa más ancho y estético (400px) */
+  }
+}
+
+/* ── CENTRADO ABSOLUTO: BARRA DE ZONA Y BOTÓN ── */
+.zona-title-row {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 15px !important;
+}
+
+.zona-name-input {
+  flex: none !important;
+  width: 260px !important;
+  text-align: center !important;
+}
+
+.btn-del-zona {
+  margin: 0 !important;
+}
+
+/* ── ALINEACIÓN ABSOLUTA: COLUMNA CHOFER Y DATOS ── */
+
+/* 1. Título y Celda principal con el mismo margen izquierdo exacto */
+.rec-table th:nth-child(4),
+.rec-table td:nth-child(4) {
+  display: table-cell !important;
+  text-align: left !important;
+  padding-left: 20px !important;
+  vertical-align: middle !important;
+}
+
+/* 2. Eliminar paddings y márgenes "fantasma" de los textos internos para evitar desfases */
+.rec-table td:nth-child(4) .rec-nombre-display,
+.rec-table td:nth-child(4) .rec-inp {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  text-align: left !important;
+  width: 100% !important;
 }

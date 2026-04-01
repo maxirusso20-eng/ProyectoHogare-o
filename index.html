@@ -10,6 +10,12 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('col_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
 </head>
 
 <body>
@@ -22,8 +28,8 @@
                     <path fill="#3b82f6"
                         d="M624 352h-16V243.9c0-12.7-5.1-24.9-14.1-33.9L494 110.1c-9-9-21.2-14.1-33.9-14.1H416V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48v320c0 26.5 21.5 48 48 48h16c0 53 43 96 96 96s96-43 96-96h128c0 53 43 96 96 96s96-43 96-96h48c8.8 0 16-7.2 16-16v-32c0-8.8-7.2-16-16-16zM160 464c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm320 0c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm80-208H416V144h44.1l99.9 99.9V256z" />
                 </svg>
-                <h1
-                    style="font-family:'Plus Jakarta Sans', sans-serif; font-size: 2.8rem; color:#fff; margin-top:30px; letter-spacing:-0.04em; font-weight: 800;">
+                <h1 style="font-family:'Plus Jakarta Sans', sans-serif; font-size: 2.8rem; margin-top:30px; letter-spacing:-0.04em; font-weight: 800;"
+                    class="splash-title">
                     Logistica <span style="color:#3b82f6;">Hogareño</span>
                 </h1>
                 <p
@@ -140,8 +146,16 @@
                             oninput="let v=this.value.replace(/\D/g,''); if(v.length>2) v=v.slice(0,2)+'/'+v.slice(2); if(v.length>5) v=v.slice(0,5)+'/'+v.slice(5); this.value=v.slice(0,10);">
                     </div>
                     <div class="field">
+                        <label>VEHÍCULO</label>
+                        <select id="nc-veh" style="text-align: center; text-align-last: center;">
+                            <option value="AUTO">AUTO</option>
+                            <option value="SUV">SUV</option>
+                            <option value="UTILITARIO">UTILITARIO</option>
+                        </select>
+                    </div>
+                    <div class="field">
                         <label>CONDICIÓN</label>
-                        <select id="nc-cond">
+                        <select id="nc-cond" style="text-align: center; text-align-last: center;">
                             <option value="TITULAR">TITULAR</option>
                             <option value="SUPLENTE">SUPLENTE</option>
                         </select>
@@ -174,9 +188,7 @@
                 <!-- CONDUCTOR -->
                 <div class="field" style="margin:0">
                     <label>Conductor</label>
-                    <select id="ncli-cho" class="inp-inline" style="width:100%">
-                        <option value="">— sin asignar —</option>
-                    </select>
+                    <select id="ncli-cho" class="inp-inline" style="width:100%"></select>
                 </div>
                 <!-- HORARIO + DIRECCION -->
                 <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
@@ -443,6 +455,9 @@
         <div class="recorridos-header">
             <h2>🏆 Ranking de Efectividad (Mensual)</h2>
             <div class="rec-actions">
+                <button class="btn-sm" onclick="Handlers.cerrarMesPDF()"
+                    style="background:#ef4444; color:#fff; border-color:#ef4444; font-weight:700;">📄 Exportar PDF y
+                    Cerrar Mes</button>
                 <button class="btn-sm" onclick="irA('recorridos')">Volver a Recorridos</button>
             </div>
         </div>
@@ -500,7 +515,7 @@
                         <th>DIRECCIÓN</th>
                         <th>FECHA INGRESO</th>
                         <th>CONDICIÓN</th>
-                        <th>ACTIVO</th>
+                        <th style="text-align:center">VEHÍCULO</th>
                         <th>ACCIONES</th>
                     </tr>
                 </thead>
