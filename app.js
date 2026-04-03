@@ -29,6 +29,7 @@ const S = {
   editando: null,
   editandoCol: null,
   editandoDB: null,
+  recorridos: null,
 
   dbAutenticado: false,
   filtroDB: 'titulares',
@@ -213,6 +214,14 @@ const Storage = {
   savePage(p) { Storage.set('col_page', p); },
   loadHojaCli() { return Storage.get('col_hoja_cli', 'DESPACHO_WHATSAPP'); },
   saveHojaCli(h) { Storage.set('col_hoja_cli', h); },
+
+  // ── Persistencia del tab activo en Base de Datos ──
+  loadFiltroDB() { return Storage.get('col_filtro_db', 'titulares'); },
+  saveFiltroDB(f) { Storage.set('col_filtro_db', f); },
+
+  // ── Modo Offline (desconectado de Google Sheets) ──
+  isOfflineMode() { return Storage.get('col_offline_mode') === 'true'; },
+  setOfflineMode(v) { Storage.set('col_offline_mode', v ? 'true' : 'false'); },
 };
 
 // ─── API ─────────────────────────────────────────────────────────
@@ -333,17 +342,48 @@ const API = {
 
   parseDBChoferes(rows) {
     if (!rows || rows.length < 2) return [];
-    return rows.slice(1).map((r, i) => ({
-      id: i + 1, // Row relative ID
-      choferIdAt: r[0]?.toString().trim() || '', // ID CH001
-      nombre: r[1]?.toString().trim() || '',
-      tel: r[2]?.toString().trim() || '',
-      dni: r[3]?.toString().trim() || '',
-      zona: r[4]?.toString().trim() || '',
-      direccion: r[5]?.toString().trim() || '',
-      ingreso: r[6]?.toString().trim() || '—',
-      activo: r[7]?.toString().toUpperCase() !== 'FALSE'
-    })).filter(c => c.nombre);
+
+    const memoria = JSON.parse(localStorage.getItem('hogareno_memoria_db')) || {};
+
+    return rows.slice(1).map((r, i) => {
+      const rowId = i + 1;
+      const idStr = r[0]?.toString().trim() || '';
+      const numId = parseInt(idStr.replace(/\D/g, ''), 10) || 0;
+      const nombre = r[1]?.toString().trim() || '';
+
+      let chofer = {
+        id: rowId,
+        choferIdAt: idStr,
+        nombre: nombre,
+        tel: r[2]?.toString().trim() || '',
+        dni: r[3]?.toString().trim() || '',
+        zona: r[4]?.toString().trim() || '',
+        direccion: r[5]?.toString().trim() || '',
+        ingreso: r[6]?.toString().trim() || '—',
+        condicion: r[7]?.toString().trim().toUpperCase() || '',
+        vehiculo: r[8]?.toString().trim().toUpperCase() || 'AUTO',
+        activo: true
+      };
+
+      // OVERRIDE ABSOLUTO CON LA BÓVEDA LOCAL
+      const nombreKey = nombre.toLowerCase();
+      const guardado = memoria[idStr] || memoria[nombreKey];
+
+      if (guardado) {
+        chofer.condicion = guardado.condicion;
+        chofer.vehiculo = guardado.vehiculo || chofer.vehiculo;
+        if (guardado.choferIdAt) chofer.choferIdAt = guardado.choferIdAt;
+      } else {
+        // Regla automática solo si no hay memoria previa
+        if (!chofer.condicion || chofer.condicion === 'TITULAR') {
+          if (numId >= 1000) chofer.condicion = 'COLECTADOR';
+          else if (numId >= 200) chofer.condicion = 'SUPLENTE';
+          else chofer.condicion = 'TITULAR';
+        }
+      }
+
+      return chofer;
+    }).filter(c => c.nombre);
   },
 
   getIndices(rows) {
@@ -459,12 +499,12 @@ const API = {
     return Object.values(zonasMap);
   },
 
-  // parseDBChoferes duplicate removed for cleanliness
+  // (fin de API)
 };
 
 // ─── STORE ───────────────────────────────────────────────────────
 const Store = {
-  isLocal() { return Storage.get('migration_done') === 'true'; },
+  isLocal() { return Storage.get('migration_done') === 'true' || Storage.isOfflineMode(); },
 
   async cargarDespacho() {
     await this.cargarClientes();
@@ -541,12 +581,43 @@ const Store = {
   },
 
   async cargarDB() {
-    const local = localStorage.getItem('dbChoferes');
-    if (local) {
-      S.dbChoferes = JSON.parse(local);
-    } else if (this.isLocal()) {
-      S.dbChoferes = LocalDB.getDB().conductores || [];
+    let locales = [];
+    if (typeof LocalDB !== 'undefined' && LocalDB.getDB) {
+      locales = LocalDB.getDB().conductores || [];
+    } else {
+      const crudo = localStorage.getItem('dbChoferes');
+      if (crudo) locales = JSON.parse(crudo);
     }
+    S.dbChoferes = locales;
+
+    const memoria = JSON.parse(localStorage.getItem('hogareno_memoria_db')) || {};
+    S.dbChoferes.forEach(c => {
+      const nombreKey = (c.nombre || '').toLowerCase();
+      const guardado = memoria[c.choferIdAt] || memoria[nombreKey];
+
+      // Restaurar choferIdAt desde la bóveda si fue editado manualmente
+      if (guardado && guardado.choferIdAt) {
+        c.choferIdAt = guardado.choferIdAt;
+      }
+
+      // ── REGLA ÚNICA DE IDs (Fuente de Verdad) ──
+      // La condición se determina SIEMPRE por el rango del ID y se persiste en memoria.
+      // Esto garantiza que F5, sync y migraciones nunca reviertan la clasificación.
+      const numId = parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) || 0;
+      if (numId >= 1000) c.condicion = 'COLECTADOR';
+      else if (numId >= 200) c.condicion = 'SUPLENTE';
+      else c.condicion = 'TITULAR';
+
+      // Actualizar bóveda con la condición correcta para que sobreviva migraciones
+      const keyId = c.choferIdAt;
+      const keyNom = c.nombre.toLowerCase();
+      const backupData = { condicion: c.condicion, vehiculo: c.vehiculo || 'AUTO', choferIdAt: c.choferIdAt };
+      memoria[keyId] = backupData;
+      memoria[keyNom] = backupData;
+    });
+    localStorage.setItem('hogareno_memoria_db', JSON.stringify(memoria));
+
+    S.dbChoferesBDFull = [...S.dbChoferes];
     S.dbChoferesFiltrados = [...S.dbChoferes];
     return S.dbChoferes;
   },
@@ -572,7 +643,10 @@ const Store = {
 
       if (S.pagina === 'despacho') { Render.despacho(S.choferes); Render.stats(); }
       if (S.pagina === 'clientes') Render.clientes(S.clientes);
-      if (S.pagina === 'db-choferes') Render.db(S.dbChoferes);
+      if (S.pagina === 'db-choferes') {
+        // FIX CRÍTICO: Forzar filtrado al cargar para respetar el tab activo (F5 Bug)
+        Handlers.filtrarDB();
+      }
       if (S.pagina === 'recorridos') {
         const zonas = await this.cargarRecorridos();
         Render.recorridos(zonas);
@@ -719,7 +793,12 @@ const Render = {
     if (mEl) mEl.innerHTML = mensaje;
 
     modal.style.setProperty('display', 'flex', 'important');
-    modal.animate([{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
+
+    // FIX ANTI-GLITCH: Animamos solo la tarjeta, no el fondo oscuro completo
+    const card = modal.querySelector('.modal-card');
+    if (card) {
+      card.animate([{ opacity: 0, transform: 'scale(0.95)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
+    }
   },
 
   stats() {
@@ -769,7 +848,7 @@ const Render = {
     let waLink = '';
     if (c.tel && c.chofer) {
       const msg = `Buenas *${c.chofer}*! Quería consultarte en cuanto llegas? Disculpame las molestias!`;
-      const url = `https://wa.me/549${c.tel.replace(/\\D/g, '')}?text=${enc(msg)}`;
+      const url = `https://wa.me/549${c.tel.replace(/\D/g, '')}?text=${enc(msg)}`;
       waLink = ` <a href="${url}" target="_blank" style="text-decoration:none; margin-left:10px; vertical-align:middle; transition: transform 0.2s; display:inline-block;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Avisar a ${x(c.chofer)}">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366"><path d="M12.031 0C5.385 0 0 5.384 0 12.031c0 2.126.55 4.195 1.597 6.01L.031 24l6.094-1.598a12.022 12.022 0 005.906 1.545h.005c6.643 0 12.027-5.385 12.027-12.031S18.675 0 12.031 0zm0 21.968h-.004a10.01 10.01 0 01-5.1-1.38l-.366-.217-3.793.995 1.013-3.697-.238-.379a9.998 9.998 0 01-1.536-5.322c0-5.514 4.49-10.003 10.005-10.003 2.67 0 5.183 1.04 7.07 2.928 1.888 1.887 2.929 4.399 2.929 7.07 0 5.513-4.49 10.005-10.005 10.005z"/><path d="M17.535 14.127c-.302-.151-1.789-.882-2.065-.983-.275-.101-.476-.151-.677.151-.201.302-.779.983-.954 1.184-.176.202-.352.227-.654.076-.302-.151-1.275-.47-2.428-1.5-1.012-.904-1.694-2.019-1.894-2.321-.201-.302-.021-.466.13-.617.135-.135.302-.352.452-.529.151-.176.202-.301.302-.503.101-.202.05-.378-.025-.529-.076-.151-.677-1.632-.927-2.235-.243-.585-.49-.505-.677-.514-.176-.009-.377-.009-.578-.009s-.527.075-.803.377c-.276.302-1.054 1.031-1.054 2.516s1.079 2.919 1.23 3.121c.15.202 2.13 3.253 5.161 4.561.721.31 1.283.496 1.723.635.723.23 1.382.197 1.9.119.58-.088 1.789-.731 2.04-1.437.251-.706.251-1.311.176-1.437-.076-.126-.277-.202-.579-.353z"/></svg>
       </a>`;
@@ -855,11 +934,13 @@ const Render = {
   _dbRow(c) {
     const tr = document.createElement('tr');
     tr.id = `db-row-${c.id}`;
-    // Determinar condición: del campo o por regla de negocio (ID > 300 = SUPLENTE)
-    const condicion = c.condicion || (parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) > 300 ? 'SUPLENTE' : 'TITULAR');
-    const condBadge = condicion === 'SUPLENTE'
-      ? `<span style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">SUPLENTE</span>`
-      : `<span style="background:#10b98122;color:#10b981;border:1px solid #10b98155;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">TITULAR</span>`;
+    const condicion = String(c.condicion || 'TITULAR').toUpperCase(); // Respetar valor guardado
+
+    let condBadge = '';
+    if (condicion === 'COLECTADOR') condBadge = `<span style="background:#8b5cf622;color:#8b5cf6;border:1px solid #8b5cf655;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">COLECTADOR</span>`;
+    else if (condicion === 'SUPLENTE') condBadge = `<span style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">SUPLENTE</span>`;
+    else condBadge = `<span style="background:#10b98122;color:#10b981;border:1px solid #10b98155;border-radius:4px;padding:2px 6px;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;">TITULAR</span>`;
+
     tr.innerHTML = `
       <td style="text-align: center; vertical-align: middle;">
         <input type="text" class="rec-inp" value="${x(c.choferIdAt)}" data-action="update-id-inline" data-id="${c.id}" style="width:75px; margin: 0 auto; display: block; text-align:center; font-weight:700; color:var(--accent); background:rgba(0,0,0,0.08); border-radius:4px; border:1px solid transparent;">
@@ -883,7 +964,7 @@ const Render = {
     const tr = document.createElement('tr');
     tr.id = `db-edit-row-${c.id}`;
     tr.innerHTML = `
-      <td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}"></td>
+      <td><input class="inp-inline" id="db-in-idat-${c.id}" value="${x(c.choferIdAt)}" oninput="Handlers.autoCategorizarID(this, 'db-in-cond-${c.id}')"></td>
       <td><input class="inp-inline" id="db-in-nom-${c.id}" value="${x(c.nombre)}"></td>
       <td><input class="inp-inline" id="db-in-tel-${c.id}" value="${x(c.tel)}"></td>
       <td><input class="inp-inline" id="db-in-dni-${c.id}" value="${x(c.dni)}"></td>
@@ -894,6 +975,7 @@ const Render = {
         <select class="select-inline" id="db-in-cond-${c.id}" style="font-size:0.7rem; padding:2px; text-align:center; text-align-last:center;">
           <option value="TITULAR"${c.condicion === 'TITULAR' ? ' selected' : ''}>TITULAR</option>
           <option value="SUPLENTE"${c.condicion === 'SUPLENTE' ? ' selected' : ''}>SUPLENTE</option>
+          <option value="COLECTADOR"${c.condicion === 'COLECTADOR' ? ' selected' : ''}>COLECTADOR</option>
         </select>
       </td>
       <td style="text-align:center">
@@ -960,7 +1042,7 @@ const Handlers = {
 
     const iframe = document.getElementById('map-iframe');
     if (iframe) {
-      // Actualizar el atributo src del iframe de Google Maps
+      // Actualizar el atributo src del iframe usando el endpoint oficial de Google Maps
       iframe.src = `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
       Render.toast('📍 Buscando dirección...', 'info');
     }
@@ -1164,7 +1246,7 @@ const Handlers = {
     const c = S.choferes.find(k => k.nombre === nombre);
     if (!c) return;
     const nuevo = forzar ? true : !c.enviado;
-    if (c.enviado === nuevo && !forzar) return; // Evitar guardado innecesario si no hay cambio
+    if (c.enviado === nuevo) return; // Evitar guardado innecesario si no hay cambio
 
     c.enviado = nuevo;
     nuevo ? S.enviados.add(nombre) : S.enviados.delete(nombre);
@@ -1508,20 +1590,30 @@ const Handlers = {
       return;
     }
 
-    if (!S.recorridos) S.recorridos = [];
+    // --- NUEVA VALIDACIÓN EN TIEMPO REAL (DOM) ---
+    let duplicado = false;
+    let zonaDuplicada = '';
+    let locDuplicada = '';
 
-    // Validación de Doble Asignación en toda la hoja
-    let duplicadoEn = null;
-    S.recorridos.forEach(z => {
-      const f = z.filas.find(row => row.id != rowId && row.idChofer && row.idChofer.toUpperCase() === idat);
-      if (f) duplicadoEn = z.nombre || 'otra zona';
+    document.querySelectorAll('.zona-tbody tr').forEach(tr => {
+      const currentId = tr.dataset.rowid;
+      if (currentId && currentId !== rowId) {
+        // Leemos el valor actual del input directamente de la pantalla
+        const inputId = tr.querySelector('.id-chofer')?.value.trim().toUpperCase();
+        if (inputId === idat) {
+          duplicado = true;
+          zonaDuplicada = tr.closest('.zona-tbody')?.dataset.zona || 'Otra zona';
+          locDuplicada = tr.querySelector('input[data-field="localidad"]')?.value || 'Localidad desconocida';
+        }
+      }
     });
 
-    if (duplicadoEn) {
-      Render.errorModal('Doble Asignación', `El ID <strong>${idat}</strong> ya está asignado a la localidad de <strong>${duplicadoEn}</strong>.`);
-      inp.value = "";
+    if (duplicado) {
+      Render.errorModal('Doble Asignación', `El ID <strong>${idat}</strong> ya está asignado a la localidad de <strong>${locDuplicada}</strong> en <strong>${zonaDuplicada}</strong>.`);
+      inp.value = ""; // Vaciamos el input rebelde para no dejarlo pasar
       return;
     }
+    // ----------------------------------------------
 
     const found = S.choferesBDFull.find(c => c.choferIdAt && c.choferIdAt.toUpperCase() === idat);
     const nomDisplay = document.getElementById(`rec-nom-${rowId}`);
@@ -1539,7 +1631,7 @@ const Handlers = {
       async () => {
         if (!S.recorridos) S.recorridos = await Store.cargarRecorridos();
         const zona = S.recorridos.find(z => z.nombre === zonaNombre);
-        if (zona) zona.filas = zona.filas.filter(f => f.id != rowId);
+        if (zona) zona.filas = zona.filas.filter(f => String(f.id) !== String(rowId));
 
         const ovr = Storage.loadRecOverrides(S.hojaRecorridos);
         if (ovr[rowId]) { delete ovr[rowId]; Storage.setJSON(`col_rec_ovr_${S.hojaRecorridos}`, ovr); }
@@ -1564,11 +1656,17 @@ const Handlers = {
   },
 
   async cargarDB() {
-    try { await Store.cargarDB(); Render.database(S.dbChoferesFiltrados); } catch (err) { Render.toast(err.message, 'err'); }
+    try {
+      await Store.cargarDB();
+      Handlers.filtrarDB(); // Fix: Forzar filtro visual en lugar de Render directo
+    } catch (err) {
+      Render.toast(err.message, 'err');
+    }
   },
 
   cambiarTabDB(tab) {
     S.filtroDB = tab;
+    Storage.saveFiltroDB(tab); // ← Persiste el tab activo para sobrevivir F5
     document.querySelectorAll('#tab-group-db .tab-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tab);
     });
@@ -1577,21 +1675,28 @@ const Handlers = {
 
   filtrarDB() {
     const q = document.getElementById('search-db-choferes').value.toLowerCase();
+    const tabActual = S.filtroDB || 'titulares';
+
+    // --- FIX VISUAL ABSOLUTO: Sincronizar botones con el estado real ---
+    document.querySelectorAll('#tab-group-db .tab-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tabActual);
+    });
 
     const filtrados = S.dbChoferes.filter(c => {
-      // Extraer números del ID para evaluar si es suplente (> 300)
-      const numId = parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) || 0;
-      const esSuplente = c.condicion === 'SUPLENTE' || numId > 300;
+      const condReal = c.condicion;
 
-      // Filtrar por pestaña
-      const tabActual = S.filtroDB || 'titulares';
-      if (tabActual === 'suplentes' && !esSuplente) return false;
-      if (tabActual === 'titulares' && esSuplente) return false;
+      if (tabActual === 'titulares' && condReal !== 'TITULAR') return false;
+      if (tabActual === 'suplentes' && condReal !== 'SUPLENTE') return false;
+      if (tabActual === 'colectadores' && condReal !== 'COLECTADOR') return false;
 
-      // Filtrar por texto
       if (q && !c.nombre.toLowerCase().includes(q) && !(c.dni && String(c.dni).includes(q))) return false;
-
       return true;
+    });
+
+    filtrados.sort((a, b) => {
+      const numA = parseInt(String(a.choferIdAt).replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(String(b.choferIdAt).replace(/\D/g, ''), 10) || 0;
+      return numA - numB;
     });
 
     S.dbChoferesFiltrados = filtrados;
@@ -1604,31 +1709,50 @@ const Handlers = {
 
     c.choferIdAt = nuevoId.trim().toUpperCase();
     const numIdValue = parseInt(String(c.choferIdAt).replace(/\D/g, ''), 10) || 0;
-    c.condicion = numIdValue > 300 ? 'SUPLENTE' : 'TITULAR';
 
-    // Actualizar localmente si fue un chofer creado offline
-    const locales = Storage.loadLocalNuevosChoferes();
-    const idxLocal = locales.findIndex(x => x.id === rowId);
-    if (idxLocal !== -1) {
-      locales[idxLocal].choferIdAt = c.choferIdAt;
-      Storage.setJSON('col_local_db_choferes', locales);
-    }
+    // Auto-reclasificación al tipear
+    if (numIdValue >= 1000) c.condicion = 'COLECTADOR';
+    else if (numIdValue >= 200) c.condicion = 'SUPLENTE';
+    else c.condicion = 'TITULAR';
 
-    // Refrescar la vista (hará que salte de pestaña automáticamente si pasa los 300)
+    // GUARDADO EN BÓVEDA INDESTRUCTIBLE
+    let memoria = JSON.parse(localStorage.getItem('hogareno_memoria_db')) || {};
+    const backupData = { condicion: c.condicion, vehiculo: c.vehiculo, choferIdAt: c.choferIdAt };
+    memoria[c.choferIdAt] = backupData;
+    memoria[c.nombre.toLowerCase()] = backupData;
+    localStorage.setItem('hogareno_memoria_db', JSON.stringify(memoria));
+
+    if (typeof LocalDB !== 'undefined' && LocalDB.saveChoferes) LocalDB.saveChoferes(S.dbChoferes);
+
     Handlers.filtrarDB();
-    Render.toast('✓ ID actualizado', 'ok');
-
-    // Sincronizar con Google Sheets en segundo plano
-    if (S.config.appsUrl) {
-      const sid = S.config.sheetIdRec || S.config.sheetId;
-      API.ping(`${S.config.appsUrl}?action=updateRecorridoFila&sheet=${enc('BASE DE DATOS CHOFERES')}&row=${rowId}&docid=${sid}&field=db_id&value=${enc(c.choferIdAt)}`);
-    }
+    Render.toast('✓ ID actualizado y anclado', 'ok');
   },
 
   abrirModalConductor() {
     Handlers.cerrarModalNuevoRegistro();
     const modal = document.getElementById('modal-nuevo-chofer');
     if (modal) modal.style.setProperty('display', 'flex', 'important');
+  },
+
+  // Alias definido directamente en el objeto para evitar dependencia del alias window
+  cerrarModalNuevoRegistro() {
+    if (typeof window.cerrarModalNuevoConductor === 'function') {
+      window.cerrarModalNuevoConductor();
+    }
+  },
+
+  // Alias para data-action="eliminar-rec-fila" (el botón usa onclick directo,
+  // pero se mantiene por si algún elemento usa el atributo delegado)
+  eliminarRecFila(rowId) {
+    const tr = document.querySelector(`tr[data-rowid="${rowId}"]`);
+    if (!tr) return;
+    const zonaNombre = tr.closest('.zona-tbody')?.dataset.zona || '';
+    Handlers.quitarChoferDeRecorrido(zonaNombre, rowId);
+  },
+
+  // Alias para data-action="chofer-select" (equivalente funcional a onIdSelect)
+  onChoferSelect(el, rowId) {
+    Handlers.onIdSelect(el, rowId);
   },
 
   editarRegistro(idInterno) {
@@ -1742,7 +1866,7 @@ const Handlers = {
       if (selCond && selCond.value) {
         condicionVal = selCond.value;
       } else {
-        condicionVal = parseInt(idatUpper, 10) > 300 ? 'SUPLENTE' : 'TITULAR';
+        condicionVal = parseInt(idatUpper, 10) >= 1000 ? 'COLECTADOR' : parseInt(idatUpper, 10) >= 200 ? 'SUPLENTE' : 'TITULAR';
       }
 
       const data = {
@@ -1952,22 +2076,29 @@ const Handlers = {
     const zon = document.getElementById(`db-in-zon-${id}`)?.value.trim();
     const dir = document.getElementById(`db-in-dir-${id}`)?.value.trim();
     const ing = document.getElementById(`db-in-ing-${id}`)?.value.trim();
-    let cond = document.getElementById(`db-in-cond-${id}`)?.value;
-    const veh = document.getElementById(`db-in-veh-${id}`)?.value || 'AUTO';
-
     const numIdValue = parseInt(String(idat).replace(/\D/g, ''), 10) || 0;
-    if (numIdValue > 300) cond = 'SUPLENTE';
+
+    let cond = 'TITULAR';
+    if (numIdValue >= 1000) cond = 'COLECTADOR';
+    else if (numIdValue >= 200) cond = 'SUPLENTE';
+    const veh = document.getElementById(`db-in-veh-${id}`)?.value || 'AUTO';
 
     if (!idat || !nom || !tel) return Render.toast('ID, Nombre y Celular obligatorios', 'err');
 
     const data = { choferIdAt: idat, nombre: nom, tel, dni, zona: zon, direccion: dir, ingreso: ing, condicion: cond, vehiculo: veh };
     Object.assign(c, data);
-    const cFull = S.dbChoferesBDFull.find(x => x.id === id);
-    if (cFull) Object.assign(cFull, data);
 
-    LocalDB.saveChoferes(S.dbChoferesBDFull);
+    // GUARDADO EN BÓVEDA INDESTRUCTIBLE (por ID y por Nombre)
+    let memoria = JSON.parse(localStorage.getItem('hogareno_memoria_db')) || {};
+    const backupData = { condicion: cond, vehiculo: veh, choferIdAt: idat };
+    memoria[idat] = backupData;
+    memoria[nom.toLowerCase()] = backupData;
+    localStorage.setItem('hogareno_memoria_db', JSON.stringify(memoria));
+
+    if (typeof LocalDB !== 'undefined' && LocalDB.saveChoferes) LocalDB.saveChoferes(S.dbChoferes);
+
     Handlers.filtrarDB();
-    Render.toast('✓ Cambios guardados', 'ok');
+    Render.toast('✓ Cambios guardados y anclados', 'ok');
   },
 
   cancelarRegDB(id) {
@@ -1980,6 +2111,14 @@ const Handlers = {
       c.activo = checked;
       LocalDB.saveChoferes(S.dbChoferesBDFull);
       Render.toast(checked ? '✓ Conductor Activo' : '⚪ Conductor Inactivo', 'info');
+    }
+  },
+
+  autoCategorizarID(inp, selectId) {
+    const v = parseInt(inp.value) || 0;
+    const s = document.getElementById(selectId);
+    if (s) {
+      s.value = v >= 1000 ? 'COLECTADOR' : (v >= 200 ? 'SUPLENTE' : 'TITULAR');
     }
   },
 };
@@ -2062,7 +2201,7 @@ async function irA(pagina, pushHistory = true) {
         Render.toast('🔐 Acceso Concedido', 'ok');
         const btn = document.getElementById('btn-nuevo-conductor');
         if (btn) btn.style.display = 'inline-block';
-        irA(pagina);
+        irA(pagina, pushHistory);
       } else {
         Render.toast('❌ Contraseña Incorrecta', 'err');
       }
@@ -2101,6 +2240,21 @@ async function irA(pagina, pushHistory = true) {
   if (pagina === 'historial-recorridos') Handlers.cargarHistorialRecorridos();
   if (pagina === 'db-choferes' && S.dbAutenticado) await Handlers.cargarDB();
   if (pagina === 'rankings') { Handlers.cargarRankings(); Render.setStatus('ok'); }
+
+  // Actualizar estado visual del botón Modo Offline en el panel Admin
+  if (pagina === 'admin') {
+    const btn = document.getElementById('btn-offline-mode');
+    const lbl = document.getElementById('offline-mode-label');
+    if (btn && lbl) {
+      const isOff = Storage.isOfflineMode();
+      btn.style.border = isOff ? '1px solid #10b981' : '1px solid #f59e0b';
+      btn.style.background = isOff ? 'rgba(16,185,129,0.10)' : 'rgba(245,158,11,0.10)';
+      btn.querySelector('span').textContent = isOff ? '✅' : '🔌';
+      btn.querySelector('strong').textContent = isOff ? 'Modo Offline ACTIVO' : 'Desconectar de Sheets';
+      lbl.textContent = isOff ? 'La app funciona 100% local · sin conexión a Sheets' : 'Activar modo 100% local · reclasifica TITULARES/SUPLENTES/COLECTADORES';
+      if (isOff) btn.onclick = null; // Evitar re-activar si ya está activo
+    }
+  }
 }
 
 function cambiarHoja(nombre) { S.hojaDespacho = nombre; S.hojaClientes = nombre; Storage.saveHojaDespacho(nombre); Storage.saveHojaCli(nombre); S.choferes = []; S.enviados = Storage.loadEnviados(nombre); irA('despacho'); }
@@ -2157,6 +2311,48 @@ window.cerrarModalNuevaLocalidad = () => {
 };
 window.abrirSeguridad = () => irA('db-choferes');
 window.guardarConfig = () => { Storage.saveConfig({ sheetId: document.getElementById('inp-sheet-id').value.trim(), apiKey: document.getElementById('inp-api-key').value.trim(), appsUrl: document.getElementById('inp-apps-url').value.trim(), sheetIdRec: document.getElementById('inp-sid-rec').value.trim() }); Render.toast('✓ Configuración Guardada', 'ok'); location.reload(); };
+
+// ─── MODO OFFLINE: Desconecta de Google Sheets y reclasifica todos los datos ───
+window.activarModoOffline = function () {
+  Handlers.solicitarConfirmacion(
+    '🔌 Desconectar de Google Sheets',
+    '¿Activar Modo Offline? La app dejará de leer y escribir en Sheets. <strong>Todos los datos actuales quedan guardados localmente</strong> y se reclasifican automáticamente por rango de ID.',
+    () => {
+      // 1. Activar flags de modo offline y local
+      Storage.setOfflineMode(true);
+      Storage.set('migration_done', 'true');
+
+      // 2. Reclasificar TODOS los conductores existentes por rango de ID
+      const db = LocalDB.getDB();
+      const conductores = db.conductores || [];
+      const memoria = JSON.parse(localStorage.getItem('hogareno_memoria_db')) || {};
+
+      let reclasificados = 0;
+      conductores.forEach(c => {
+        const numId = parseInt(String(c.choferIdAt || '').replace(/\D/g, ''), 10) || 0;
+        let nuevaCond;
+        if (numId >= 1000) nuevaCond = 'COLECTADOR';
+        else if (numId >= 200) nuevaCond = 'SUPLENTE';
+        else nuevaCond = 'TITULAR';
+
+        if (c.condicion !== nuevaCond) reclasificados++;
+        c.condicion = nuevaCond;
+
+        // Grabar en bóveda para que sea indestructible
+        const backup = { condicion: nuevaCond, vehiculo: c.vehiculo || 'AUTO', choferIdAt: c.choferIdAt };
+        memoria[c.choferIdAt] = backup;
+        if (c.nombre) memoria[c.nombre.toLowerCase()] = backup;
+      });
+
+      // 3. Persistir datos reclasificados
+      LocalDB.saveChoferes(conductores);
+      localStorage.setItem('hogareno_memoria_db', JSON.stringify(memoria));
+
+      Render.toast(`✅ Modo Offline activado. ${conductores.length} conductores reclasificados (${reclasificados} corregidos). Reiniciando...`, 'ok');
+      setTimeout(() => location.reload(), 2200);
+    }
+  );
+};
 window.resetConfig = () => {
   Handlers.solicitarConfirmacion(
     'Resetear App',
@@ -2281,15 +2477,11 @@ window.guardarRegistroGlobal = function () {
   }
 
   try {
-    // 5. Regla de negocio estricta: ID > 300 → SUPLENTE (ignora el select)
+    // 5. Regla de negocio ABSOLUTA (fuente de verdad: rango del ID)
     const numIdValue = parseInt(String(idatUpper).replace(/\D/g, ''), 10) || 0;
-    let condicion;
-    if (numIdValue > 300) {
-      condicion = 'SUPLENTE';
-    } else {
-      const selCond = document.getElementById('nc-cond');
-      condicion = selCond && selCond.value ? selCond.value : 'TITULAR';
-    }
+    let condicion = 'TITULAR';
+    if (numIdValue >= 1000) condicion = 'COLECTADOR';
+    else if (numIdValue >= 200) condicion = 'SUPLENTE';
 
     const data = {
       choferIdAt: idatUpper,
@@ -2319,6 +2511,14 @@ window.guardarRegistroGlobal = function () {
 
     // 6. Persistencia y refresco visual
     LocalDB.saveChoferes(S.dbChoferesBDFull);
+
+    // Actualizar bóveda de memoria para que la condición sobreviva migraciones y recargas
+    const memoriaGuardado = JSON.parse(localStorage.getItem('hogareno_memoria_db')) || {};
+    const backupDataGuardado = { condicion: condicion, vehiculo: veh, choferIdAt: idatUpper };
+    memoriaGuardado[idatUpper] = backupDataGuardado;
+    memoriaGuardado[nom.toLowerCase()] = backupDataGuardado;
+    localStorage.setItem('hogareno_memoria_db', JSON.stringify(memoriaGuardado));
+
     Handlers.filtrarDB(); // Clasifica automáticamente en Titular/Suplente
 
     // 7. Cierre limpio del modal
@@ -2326,8 +2526,8 @@ window.guardarRegistroGlobal = function () {
     window.cerrarModalNuevoConductor(); // También hace S._editId = null
     Render.toast(wasEditing ? '✓ Cambios guardados' : '✓ Conductor registrado correctamente', 'ok');
 
-    // 8. Sincronización en la nube (no bloquea)
-    if (S.config?.appsUrl) {
+    // 8. Sincronización en la nube (no bloquea) — se omite si está en Modo Offline
+    if (S.config?.appsUrl && !Storage.isOfflineMode()) {
       Render.syncIndicator(true);
       API.saveChofer({ ...data, id: idatUpper }, S.config)
         .then(() => Render.toast('✓ Sincronizado con Sheets', 'ok'))
@@ -2354,6 +2554,7 @@ window.confirmarNuevoChofer = window.guardarRegistroGlobal;
   S.hojaClientes = Storage.loadHojaCli();
   S.hojaRecorridos = Storage.loadHojaRec();
   S.enviados = Storage.loadEnviados(S.hojaDespacho);
+  S.filtroDB = Storage.loadFiltroDB(); // ← Restaurar el último tab activo (titulares/suplentes/colectadores)
 
   const theme = Storage.loadTheme();
   document.documentElement.setAttribute('data-theme', theme);

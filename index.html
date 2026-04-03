@@ -6,9 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Despacho — Colectas</title>
     <meta name="theme-color" content="#0b0c10">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
-        rel="stylesheet">
+    <!-- Google Fonts eliminado: se usa System Font Stack nativo (ver style.css) -->
     <link rel="stylesheet" href="style.css">
     <script>
         (function () {
@@ -113,7 +111,8 @@
                 <div class="modal-grid-2">
                     <div class="field">
                         <label>ID (NÚMERO)</label>
-                        <input type="number" id="nc-idat" placeholder="Ej: 105" inputmode="numeric" required>
+                        <input type="number" id="nc-idat" placeholder="Ej: 105" inputmode="numeric" required
+                            oninput="Handlers.autoCategorizarID(this, 'nc-cond')">
                     </div>
                     <div class="field">
                         <label>NOMBRE CONDUCTOR</label>
@@ -158,6 +157,7 @@
                         <select id="nc-cond" style="text-align: center; text-align-last: center;">
                             <option value="TITULAR">TITULAR</option>
                             <option value="SUPLENTE">SUPLENTE</option>
+                            <option value="COLECTADOR">COLECTADOR</option>
                         </select>
                     </div>
                 </div>
@@ -322,9 +322,9 @@
                 </div>
                 <div class="mapa-frame-container">
                     <iframe id="map-iframe"
-                        src="https://maps.google.com/maps?q=Moron,Buenos+Aires&t=&z=13&ie=UTF8&iwloc=&output=embed"
-                        frameborder="0" scrolling="no" marginheight="0" marginwidth="0"
-                        style="width: 100%; height: 400px; border: none;"></iframe>
+                        src="https://maps.google.com/maps?q=Buenos+Aires&t=&z=10&ie=UTF8&iwloc=&output=embed"
+                        style="width: 100%; height: 400px; border: none; overflow: hidden;"
+                        allowfullscreen="" loading="lazy"></iframe>
                 </div>
             </div>
 
@@ -412,7 +412,7 @@
                 </thead>
                 <tbody id="tbody-historial">
                     <tr>
-                        <td colspan="4" class="empty-state">No hay registros en el historial.</td>
+                        <td colspan="6" class="empty-state">No hay registros en el historial.</td>
                     </tr>
                 </tbody>
             </table>
@@ -444,7 +444,7 @@
                 </thead>
                 <tbody id="tbody-historial-recorridos">
                     <tr>
-                        <td colspan="6" class="empty-state">No hay registros guardados.</td>
+                        <td colspan="8" class="empty-state">No hay registros guardados.</td>
                     </tr>
                 </tbody>
             </table>
@@ -490,6 +490,8 @@
                     onclick="Handlers.cambiarTabDB('titulares')">TITULARES</button>
                 <button class="tab-btn" data-tab="suplentes"
                     onclick="Handlers.cambiarTabDB('suplentes')">SUPLENTES</button>
+                <button class="tab-btn" data-tab="colectadores"
+                    onclick="Handlers.cambiarTabDB('colectadores')">COLECTADORES</button>
             </div>
             <div class="rec-actions" style="margin-left: auto;">
                 <button id="btn-nuevo-conductor" class="btn-sm btn-accent" onclick="window.abrirModalNuevoConductor()"
@@ -534,7 +536,7 @@
             <div class="modal-header">
                 <h3 style="margin:0;font-size:1rem;font-family:'Syne',sans-serif;color:#3498db">📦 Guardar Historial
                 </h3>
-                <button onclick="document.getElementById('modal-historial-confirm').style.display='none'"
+                <button onclick="document.getElementById('modal-historial-confirm').style.removeProperty('display')"
                     class="btn-close">✕</button>
             </div>
             <div class="modal-body" style="text-align:center;padding:25px">
@@ -546,7 +548,7 @@
                 <div style="display:flex;gap:10px">
                     <button onclick="Handlers.confirmarGuardarHistorial()" class="btn-primary"
                         style="flex:2;background:#3498db;border-color:#3498db">Sí, Guardar</button>
-                    <button onclick="document.getElementById('modal-historial-confirm').style.display='none'"
+                    <button onclick="document.getElementById('modal-historial-confirm').style.removeProperty('display')"
                         class="btn-cancel" style="flex:1">No</button>
                 </div>
             </div>
@@ -562,23 +564,33 @@
         <div class="admin-menu-grid">
             <button class="btn-admin-opt" onclick="irA('db-choferes')">
                 <span style="font-size:1.5rem;">📂</span>
-                <div><strong>Base de Datos Choferes</strong><small>Ver, editar y agregar nuevos conductores</small>
-                </div>
+                <span style="display:block"><strong>Base de Datos Choferes</strong><small>Ver, editar y agregar nuevos
+                        conductores</small></span>
             </button>
             <button class="btn-admin-opt" onclick="toggleConfigInputs()">
                 <span style="font-size:1.5rem;">⚙️</span>
-                <div><strong>Conexión Sheets</strong><small>Modificar IDs de planillas y URL del macro</small></div>
+                <span style="display:block"><strong>Conexión Sheets</strong><small>Modificar IDs de planillas y URL del
+                        macro</small></span>
             </button>
             <button class="btn-admin-opt" onclick="Migrator.run()"
                 style="border: 1px solid var(--accent); background: rgba(37, 99, 235, 0.1);">
                 <span style="font-size:1.5rem;">🚀</span>
-                <div><strong>Sincronización Final</strong><small>Descargar todo de Sheets a la memoria local</small>
-                </div>
+                <span style="display:block"><strong>Sincronización Final</strong><small>Descargar todo de Sheets a la
+                        memoria local</small></span>
+            </button>
+            <button class="btn-admin-opt" onclick="activarModoOffline()" id="btn-offline-mode"
+                style="border: 1px solid #f59e0b; background: rgba(245,158,11,0.10);">
+                <span style="font-size:1.5rem;">🔌</span>
+                <span style="display:block">
+                    <strong>Desconectar de Sheets</strong>
+                    <small id="offline-mode-label">Activar modo 100% local · reclasifica
+                        TITULARES/SUPLENTES/COLECTADORES</small>
+                </span>
             </button>
             <button class="btn-admin-opt danger" onclick="resetConfig()">
                 <span style="font-size:1.5rem;">🗑️</span>
-                <div><strong>Borrar Configuración</strong><small>Eliminar todos los datos guardados en este
-                        navegador</small></div>
+                <span style="display:block"><strong>Borrar Configuración</strong><small>Eliminar todos los datos
+                        guardados en este navegador</small></span>
             </button>
         </div>
 

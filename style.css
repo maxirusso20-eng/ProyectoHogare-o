@@ -97,19 +97,27 @@
   --surface-solid: #151515;
   --accent: #3b82f6;
   --accent-glow: rgba(59, 130, 246, 0.4);
+  --accent-dim: #1c4a9c;
   --text: #ffffff;
+  --text-platinum: #f8fafc;
   --text-muted: #94a3b8;
+  --border: rgba(255, 255, 255, 0.08);
+  --hover-bg: rgba(255, 255, 255, 0.04);
+  --sent: rgba(37, 99, 235, 0.08);
+  --sent-border: rgba(37, 99, 235, 0.4);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
   --header-bg: #0f172a;
   --header-text: #ffffff;
   --header-border: rgba(59, 130, 246, 0.2);
   --header-shadow: none;
+  --surface-light: rgba(255, 255, 255, 0.06);
   --action-bar-bg: #111827;
 }
 
 :root {
   --action-bar-border: rgba(59, 130, 246, 0.2);
   --action-bar-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --text-platinum: #f8fafc;
   --radius: 16px;
   --transition: transform 0.2s ease, opacity 0.2s ease;
 }
@@ -431,36 +439,7 @@ header {
   background: var(--hover-bg);
 }
 
-/* BOTÓN ELIMINAR RECORRIDO (PREMIUM) */
-.btn-del-rec {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  margin: 0 auto;
-}
-
-.btn-del-rec:hover {
-  background: rgba(239, 68, 68, 0.12);
-  /* #ef4444 con opacidad suave */
-  color: #ef4444;
-  /* Rojo brillante */
-  transform: scale(1.05);
-}
-
-.btn-del-rec svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 2.5px;
-}
-
-/* ── RECORRIDOS ACTIONS BAR (PREMIUM REFINED) ─ */
+/* BOTÓN ELIMINAR RECORRIDO (STEALTH CIRCULAR) */
 .action-bar-recorridos {
   display: flex;
   justify-content: center;
@@ -764,13 +743,6 @@ header {
   margin-bottom: 20px;
 }
 
-.search-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  align-items: center;
-}
-
 #search-despacho,
 #search-clientes {
   flex: 1;
@@ -814,10 +786,6 @@ header {
 }
 
 /* .modal-card consolidated below */
-
-.modal-body {
-  padding: 32px;
-}
 
 .modal-footer {
   display: flex;
@@ -932,7 +900,8 @@ h2 {
 .modal-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 16px;
+  padding: 5px 0;
 }
 
 .field-full {
@@ -967,17 +936,6 @@ h2 {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--accent);
   box-shadow: 0 0 10px var(--accent-glow);
-}
-
-.modal-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 5px 0;
-}
-
-.field-full {
-  grid-column: span 2;
 }
 
 .btn-primary {
@@ -1773,12 +1731,6 @@ h2 {
   }
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg)
-  }
-}
-
 @keyframes pulse {
 
   0%,
@@ -2241,26 +2193,6 @@ tr[draggable="true"].dragging {
 }
 
 /* BOTÓN ELIMINAR RECORRIDO (STEALTH CIRCULAR) */
-.btn-del-rec {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid transparent;
-  color: rgba(148, 163, 184, 0.4);
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease;
-}
-
-.btn-del-rec:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  /* Rojo brillante al pasar el mouse */
-  border-color: rgba(239, 68, 68, 0.3);
-}
 
 .modal-overlay {
   position: fixed;
@@ -3083,7 +3015,7 @@ button.btn-accent:hover {
 /* ── AJUSTE DE ALTURA DEL MAPA ── */
 .mapa-frame-container {
   width: 100%;
-  height: 600px !important;
+  height: 450px !important;
   /* Estirado para abajo */
   background: #222;
   border-top: 1px solid var(--border);
@@ -3091,7 +3023,7 @@ button.btn-accent:hover {
 
 #map-iframe {
   width: 100%;
-  height: 600px !important;
+  height: 450px !important;
   border: none;
 }
 
@@ -3267,4 +3199,105 @@ button.btn-accent:hover {
   margin-left: 0 !important;
   text-align: left !important;
   width: 100% !important;
+}
+
+/* ── FIX: ANTI-GLITCH IFRAME MAPA ── */
+.modal-overlay {
+  will-change: opacity !important;
+  /* Quitamos 'transform' para no corromper iframes */
+  transform: none !important;
+}
+
+/* ── RENDIMIENTO EXTREMO Y FUENTES NATIVAS (ZERO LAG) ── */
+
+:root {
+  /* System Font Stack: La fuente más rápida, fluida y usada en interfaces modernas */
+  --font-base: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
+}
+
+/* Aplicar la fuente nativa a todos los elementos para unificar el diseño */
+body,
+input,
+select,
+button,
+textarea,
+.nav-tab,
+.tab-btn,
+.hint,
+.cliente-dir,
+.rec-table th,
+.rec-nombre-display {
+  font-family: var(--font-base) !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+.logo,
+.chofer-name,
+.stat-val,
+.stat-label,
+.btn-primary,
+.btn-pill,
+.zona-name-input,
+.btn-wa {
+  font-family: var(--font-base) !important;
+}
+
+/* 1. ELIMINAR EL MONSTRUO DEL LAG (GPU KILLER) */
+/* El filtro SVG feTurbulence obliga a repaints masivos. Lo desactivamos. */
+body::before {
+  display: none !important;
+}
+
+/* 2. AISLAMIENTO DE RENDERIZADO (CSS CONTAINMENT) */
+/* Le dice al navegador que no recalcule el layout general si cambia algo adentro de estas tarjetas */
+.zona-block,
+.chofer-card,
+.mapa-panel {
+  contain: content !important;
+}
+
+/* 3. OPTIMIZACIÓN DE SOMBRAS EN TEXTOS PESADOS */
+/* Los text-shadows grandes destruyen los FPS al hacer scroll. */
+.zona-name-input {
+  text-shadow: none !important;
+}
+
+/* ── FIX: FONDO DE MENÚS DESPLEGABLES (SELECT OPTIONS) ── */
+select option {
+  background-color: #0f172a !important;
+  /* Fondo oscuro elegante */
+  color: #ffffff !important;
+}
+
+[data-theme="light"] select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* ── ENCABEZADOS FIJOS TIPO GOOGLE SHEETS (STICKY HEADERS) ── */
+.clientes-table-wrap {
+  max-height: calc(100vh - 190px) !important;
+  /* Altura dinámica basada en el tamaño del monitor */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  border-radius: 12px !important;
+}
+
+/* Clavamos el encabezado arriba */
+.clientes-table th,
+.db-table th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  /* Reemplazamos el borde inferior por una sombra para que el borde no se mueva al hacer scroll */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ajuste específico para modo claro: sombra más suave */
+[data-theme="light"] .clientes-table th,
+[data-theme="light"] .db-table th {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
 }
